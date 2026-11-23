@@ -7,11 +7,12 @@ import {
   AlertCircle,
   Loader2,
   ShieldCheck,
+  Mail,
 } from "lucide-react";
 import { CONTACT_EMAIL, FORMSUBMIT_ENDPOINT } from "@/lib/site";
 import { getSafeFormSubmitUrl } from "@/lib/url";
 
-type FormStatus = "idle" | "submitting" | "success" | "error";
+type FormStatus = "idle" | "submitting" | "success" | "activation_pending" | "error";
 
 interface FieldErrors {
   name?: string;
@@ -30,7 +31,9 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MAX_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_MESSAGE_LENGTH = 3000;
-const REQUEST_TIMEOUT_MS = 12000;
+// FormSubmit cold CORS preflight + SMTP dispatch frequently exceeds 12s; 45s prevents false aborts.
+const REQUEST_TIMEOUT_MS = 45000;
+const SLOW_NOTICE_DELAY_MS = 4000;
 
 export default function ContactForm() {
   const [name, setName] = useState("");
@@ -41,6 +44,7 @@ export default function ContactForm() {
 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [status, setStatus] = useState<FormStatus>("idle");
+  const [isSlowNotice, setIsSlowNotice] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [validationNotice, setValidationNotice] = useState("");
 
@@ -50,10 +54,12 @@ export default function ContactForm() {
   const isSubmittingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
       abortControllerRef.current?.abort();
     };
   }, []);
@@ -76,6 +82,16 @@ export default function ContactForm() {
       next.message = `Message cannot exceed ${MAX_MESSAGE_LENGTH} characters.`;
     }
     return next;
+  };
+
+  const buildMailtoHref = () => {
+    const mailSubject = encodeURIComponent(
+      `Portfolio Inquiry (${topic})${name.trim() ? ` — ${name.trim()}` : ""}`
+    );
+    const mailBody = encodeURIComponent(
+      `${message.trim()}\n\n---\nFrom: ${name.trim() || "Visitor"} (${email.trim() || "no email"})`
+    );
+    return `mailto:${CONTACT_EMAIL}?subject=${mailSubject}&body=${mailBody}`;
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -128,6 +144,7 @@ export default function ContactForm() {
     isSubmittingRef.current = true;
     setErrors({});
     setValidationNotice("");
+    setIsSlowNotice(false);
     setStatus("submitting");
     setFeedbackMessage("");
 
@@ -136,9 +153,24 @@ export default function ContactForm() {
     abortControllerRef.current = controller;
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+
+    slowTimerRef.current = setTimeout(() => {
+      if (abortControllerRef.current === controller) {
+        setIsSlowNotice(true);
+      }
+    }, SLOW_NOTICE_DELAY_MS);
+
     timeoutRef.current = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
+      const pageUrl =
+        typeof window !== "undefined" &&
+        (window.location.protocol === "https:" ||
+          window.location.protocol === "http:")
+          ? window.location.href
+          : undefined;
+
       const response = await fetch(safeEndpoint, {
         method: "POST",
         headers: {
@@ -154,6 +186,7 @@ export default function ContactForm() {
           _replyto: email.trim(),
           _template: "table",
           _honey: honeyValue,
+          ...(pageUrl ? { _url: pageUrl } : {}),
         }),
         signal: controller.signal,
       });
@@ -164,6 +197,11 @@ export default function ContactForm() {
           ? (rawJson as { success?: boolean | string; message?: unknown })
           : null;
 
+      const serverMsg =
+        parsed && typeof parsed.message === "string"
+          ? parsed.message.trim()
+          : "";
+
       const isSucceeded =
         response.ok &&
         (parsed === null ||
@@ -172,10 +210,14 @@ export default function ContactForm() {
           parsed.success === undefined);
 
       if (!isSucceeded) {
-        const serverMsg =
-          parsed && typeof parsed.message === "string"
-            ? parsed.message.trim()
-            : "";
+        if (serverMsg.toLowerCase().includes("activat")) {
+          setStatus("activation_pending");
+          setFeedbackMessage(
+            `FormSubmit activation email triggered! Check ${CONTACT_EMAIL} (including Spam) and click "Activate Form" to complete setup.`
+          );
+          return;
+        }
+
         throw new Error(
           serverMsg || `Delivery service responded with status ${response.status}.`
         );
@@ -193,7 +235,7 @@ export default function ContactForm() {
       setStatus("error");
       if (err instanceof DOMException && err.name === "AbortError") {
         setFeedbackMessage(
-          `Request timed out. Please try again or email ${CONTACT_EMAIL} directly.`
+          `FormSubmit took longer than ${REQUEST_TIMEOUT_MS / 1000}s to respond. If an adblocker or firewall blocks formsubmit.co, use the direct email button below.`
         );
       } else if (err instanceof Error && err.message) {
         setFeedbackMessage(
@@ -201,16 +243,21 @@ export default function ContactForm() {
         );
       } else {
         setFeedbackMessage(
-          `Unable to send message right now. Please email ${CONTACT_EMAIL} directly.`
+          `Unable to reach FormSubmit right now. Please email ${CONTACT_EMAIL} directly.`
         );
       }
     } finally {
       isSubmittingRef.current = false;
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
+        setIsSlowNotice(false);
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
+        }
+        if (slowTimerRef.current) {
+          clearTimeout(slowTimerRef.current);
+          slowTimerRef.current = null;
         }
       }
     }
@@ -394,11 +441,33 @@ export default function ContactForm() {
         </div>
 
         {/* Persistent Live Regions for Validation & Delivery Status */}
-        <div role="status" aria-live="polite" className={status === "success" ? "" : "sr-only"}>
+        <div
+          role="status"
+          aria-live="polite"
+          className={
+            status === "success" ||
+            status === "activation_pending" ||
+            (status === "submitting" && isSlowNotice)
+              ? ""
+              : "sr-only"
+          }
+        >
           {status === "success" ? (
             <div className="p-3.5 rounded-xl bg-status-emerald/10 border border-status-emerald/35 text-xs font-mono text-status-emerald-ink flex items-start gap-2.5">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{feedbackMessage}</span>
+            </div>
+          ) : status === "activation_pending" ? (
+            <div className="p-3.5 rounded-xl bg-accent-amber/10 border border-accent-amber/35 text-xs font-mono text-accent-amber-ink flex items-start gap-2.5">
+              <Mail className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{feedbackMessage}</span>
+            </div>
+          ) : status === "submitting" && isSlowNotice ? (
+            <div className="p-3 rounded-xl bg-surface-recessed border border-line-subtle text-xs font-mono text-ink-muted flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden="true" />
+              <span>
+                Connecting to FormSubmit mail relay (first-time SMTP dispatch can take ~15–25s)...
+              </span>
             </div>
           ) : (
             validationNotice
@@ -411,9 +480,18 @@ export default function ContactForm() {
           className={status === "error" ? "" : "sr-only"}
         >
           {status === "error" ? (
-            <div className="p-3.5 rounded-xl bg-accent-crimson/15 border border-accent-crimson/35 text-xs font-mono text-status-rose flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>{feedbackMessage}</span>
+            <div className="p-3.5 rounded-xl bg-accent-crimson/15 border border-accent-crimson/35 text-xs font-mono text-status-rose flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                <span>{feedbackMessage}</span>
+              </div>
+              <a
+                href={buildMailtoHref()}
+                className="inline-flex items-center gap-1.5 min-h-[36px] px-3 py-1.5 rounded-lg bg-surface border border-line-subtle hover:border-line-strong text-ink-primary font-semibold transition-colors shrink-0"
+              >
+                <Mail className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Open Email App</span>
+              </a>
             </div>
           ) : null}
         </div>

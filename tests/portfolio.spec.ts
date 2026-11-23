@@ -359,6 +359,28 @@ test.describe("Portfolio Production Verification", () => {
     await expect(page.locator("#contact-message")).toHaveValue(
       "Retrying submission under simulated server outage."
     );
+    await expect(
+      page.locator("#contact a[href^='mailto:vaidos.mihaiiulian@gmail.com']")
+    ).toBeVisible();
+
+    // Mock FormSubmit activation-pending response & verify friendly amber guidance
+    await page.unroute("https://formsubmit.co/ajax/**");
+    await page.route("https://formsubmit.co/ajax/**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: "false",
+          message:
+            "This form needs Activation. We've sent you an email containing an 'Activate Form' link.",
+        }),
+      });
+    });
+
+    await sendButton.click();
+    await expect(
+      page.getByText(/FormSubmit activation email triggered/i)
+    ).toBeVisible();
     expect(pageErrors).toEqual([]);
   });
 });

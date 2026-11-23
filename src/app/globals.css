@@ -1,0 +1,259 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* =========================================================
+   * LIGHT THEME — "Automotive Cockpit Light" (1B Light Adaptation)
+   * Porcelain/Alabaster surfaces + Warm Amber/Redline Crimson + Cool Cyan gauges
+   * ========================================================= */
+  :root {
+    color-scheme: light;
+
+    --rgb-canvas: 248 250 252;          /* #F8FAFC Porcelain / Alabaster */
+    --rgb-surface: 255 255 255;         /* #FFFFFF Elevated Card */
+    --rgb-elevated: 255 255 255;        /* #FFFFFF Modal / Chrome */
+    --rgb-recessed: 241 245 249;        /* #F1F5F9 Recessed Sub-surface */
+
+    --rgb-ink-primary: 15 23 42;        /* #0F172A Deep Charcoal */
+    --rgb-ink-secondary: 51 65 85;      /* #334155 Crisp Slate Body */
+    --rgb-ink-muted: 71 85 105;         /* #475569 Slate Metadata (7.57:1 on #FFF) */
+
+    --rgb-accent-cobalt: 37 99 235;     /* #2563EB Primary CTA Fill (5.17:1 w/ white) */
+    --rgb-accent-cyan: 2 132 199;       /* #0284C7 Cool Gauge Icon */
+    --rgb-accent-cyan-ink: 3 105 161;   /* #0369A1 Cyan AA Text (5.36:1 on #FFF) */
+    --rgb-accent-amber: 217 119 6;      /* #D97706 Automotive Amber Indicator */
+    --rgb-accent-amber-ink: 146 64 14;  /* #92400E Amber AA Text (>6.0:1 on tinted #F1F5F9) */
+    --rgb-accent-crimson: 220 38 38;    /* #DC2626 Redline Crimson */
+
+    --rgb-status-emerald: 5 150 105;    /* #059669 Pass Indicator */
+    --rgb-status-emerald-ink: 4 120 87; /* #047857 Emerald AA Text (5.47:1 on #FFF) */
+    --rgb-status-amber: 217 119 6;      /* #D97706 Warning Indicator */
+    --rgb-status-rose: 185 28 28;       /* #B91C1C Rose AA Text (>5.1:1 on crimson/15 tint) */
+
+    /* Anodized Dark Cockpit Instrument Bay (for Telemetry Console & Code Preview) */
+    --rgb-terminal-bg: 15 23 42;        /* #0F172A */
+    --rgb-terminal-ink: 226 232 240;    /* #E2E8F0 */
+
+    --border-subtle: #CBD5E1;
+    --border-hairline: rgba(15, 23, 42, 0.10);
+    --border-strong: rgba(37, 99, 235, 0.45);
+    --spotlight-glow: rgba(37, 99, 235, 0.08);
+    --header-bg: rgba(248, 250, 252, 0.85);
+    --backdrop-scrim: rgba(15, 23, 42, 0.48);
+    --grid-line: rgba(2, 132, 199, 0.09);
+    --focus-ring: #0369A1;
+    --shadow-card: 0 10px 30px -10px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.05);
+    --shadow-elevated: 0 24px 48px -12px rgba(15, 23, 42, 0.16);
+
+    --scrollbar-track: #F1F5F9;
+    --scrollbar-thumb: rgba(71, 85, 105, 0.35);
+    --scrollbar-thumb-hover: rgba(37, 99, 235, 0.65);
+    --selection-bg: #2563EB;
+    --selection-fg: #FFFFFF;
+  }
+
+  /* =========================================================
+   * DARK THEME — "Obsidian & Titanium Slate" (1A Dark Palette)
+   * ========================================================= */
+  .dark {
+    color-scheme: dark;
+
+    --rgb-canvas: 9 13 22;              /* #090D16 Deep Obsidian Slate */
+    --rgb-surface: 17 24 39;            /* #111827 Smoked Graphite */
+    --rgb-elevated: 22 32 51;           /* #162033 Titanium Slate */
+    --rgb-recessed: 6 9 17;             /* #060911 Recessed Bay */
+
+    --rgb-ink-primary: 248 250 252;     /* #F8FAFC Crisp White */
+    --rgb-ink-secondary: 226 232 240;   /* #E2E8F0 Primary Body */
+    --rgb-ink-muted: 148 163 184;       /* #94A3B8 Metadata (6.35:1 on #162033) */
+
+    --rgb-accent-cobalt: 37 99 235;     /* #2563EB Electric Cobalt */
+    --rgb-accent-cyan: 56 189 248;      /* #38BDF8 Luminous Cyan */
+    --rgb-accent-cyan-ink: 56 189 248;  /* #38BDF8 Cyan AA Text (7.61:1 on #162033) */
+    --rgb-accent-amber: 245 158 11;     /* #F59E0B Amber Telemetry */
+    --rgb-accent-amber-ink: 245 158 11; /* #F59E0B Amber AA Text (8.26:1 on #162033) */
+    --rgb-accent-crimson: 244 63 94;    /* #F43F5E Signal Rose */
+
+    --rgb-status-emerald: 16 185 129;   /* #10B981 Signal Emerald */
+    --rgb-status-emerald-ink: 52 211 153; /* #34D399 Emerald AA Text */
+    --rgb-status-amber: 245 158 11;     /* #F59E0B Warning */
+    --rgb-status-rose: 251 113 133;     /* #FB7185 Rose AA Text */
+
+    --rgb-terminal-bg: 6 9 17;          /* #060911 Deep Instrument Bay */
+    --rgb-terminal-ink: 226 232 240;    /* #E2E8F0 */
+
+    --border-subtle: rgba(148, 163, 184, 0.20);
+    --border-hairline: rgba(148, 163, 184, 0.12);
+    --border-strong: rgba(56, 189, 248, 0.45);
+    --spotlight-glow: rgba(56, 189, 248, 0.12);
+    --header-bg: rgba(9, 13, 22, 0.80);
+    --backdrop-scrim: rgba(9, 13, 22, 0.82);
+    --grid-line: rgba(56, 189, 248, 0.07);
+    --focus-ring: #38BDF8;
+    --shadow-card: 0 18px 40px -15px rgba(0, 0, 0, 0.55);
+    --shadow-elevated: 0 25px 55px -12px rgba(0, 0, 0, 0.72);
+
+    --scrollbar-track: #090D16;
+    --scrollbar-thumb: rgba(148, 163, 184, 0.25);
+    --scrollbar-thumb-hover: rgba(56, 189, 248, 0.55);
+    --selection-bg: #2563EB;
+    --selection-fg: #FFFFFF;
+  }
+
+  body {
+    color: rgb(var(--rgb-ink-secondary));
+    background-color: rgb(var(--rgb-canvas));
+    font-family: var(--font-sans), system-ui, sans-serif;
+    overflow-x: hidden;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Global & Scoped Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.scrollbar-cockpit {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.scrollbar-cockpit::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-cockpit::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-cockpit::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+
+::selection {
+  background-color: var(--selection-bg);
+  color: var(--selection-fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================
+ * PRINT / SAVE RESUME STYLESHEET
+ * ========================================================= */
+@media print {
+  @page {
+    margin: 1.4cm;
+  }
+
+  /* Reset both Light & Dark tokens to crisp light print palette so spans, metrics, and TechTags never print white-on-white */
+  :root,
+  :root.dark,
+  .dark {
+    color-scheme: light !important;
+    --rgb-canvas: 255 255 255;
+    --rgb-surface: 255 255 255;
+    --rgb-elevated: 255 255 255;
+    --rgb-recessed: 248 250 252;
+    --rgb-ink-primary: 15 23 42;
+    --rgb-ink-secondary: 30 41 59;
+    --rgb-ink-muted: 51 65 85;
+    --rgb-accent-cobalt: 29 78 216;
+    --rgb-accent-cyan: 3 105 161;
+    --rgb-accent-cyan-ink: 3 105 161;
+    --rgb-accent-amber: 146 64 14;
+    --rgb-accent-amber-ink: 146 64 14;
+    --rgb-accent-crimson: 185 28 28;
+    --rgb-status-emerald: 4 120 87;
+    --rgb-status-emerald-ink: 4 120 87;
+    --rgb-status-amber: 146 64 14;
+    --rgb-status-rose: 185 28 28;
+    --rgb-terminal-bg: 248 250 252;
+    --rgb-terminal-ink: 15 23 42;
+    --border-subtle: #cbd5e1;
+    --border-hairline: #e2e8f0;
+    --border-strong: #64748b;
+  }
+
+  html,
+  body,
+  main {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+
+  * {
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    text-shadow: none !important;
+    transition: none !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: #0f172a !important;
+    break-after: avoid;
+  }
+
+  p,
+  li {
+    color: #1e293b !important;
+    orphans: 3;
+    widows: 3;
+  }
+
+  .tilt-card-root,
+  .tilt-card-content {
+    transform: none !important;
+    transform-style: flat !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8.5pt;
+    color: #334155;
+    word-break: break-all;
+  }
+}

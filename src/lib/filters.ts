@@ -1,6 +1,8 @@
 import type { ProjectDetail } from "@/data/experience";
 
 export type SectionId =
+  | "hero"
+  | "showcase"
   | "schematics"
   | "telemetry"
   | "experience"

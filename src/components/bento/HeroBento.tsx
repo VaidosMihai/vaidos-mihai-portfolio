@@ -23,7 +23,10 @@ const CORE_DOMAINS = [
 
 export default function HeroBento() {
   return (
-    <section className="relative pt-24 sm:pt-32 pb-12 print:pt-4 print:pb-6">
+    <section
+      id="hero"
+      className="relative pt-24 sm:pt-32 pb-12 print:pt-4 print:pb-6 scroll-mt-20"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Card 1: Main Identity & Bio */}

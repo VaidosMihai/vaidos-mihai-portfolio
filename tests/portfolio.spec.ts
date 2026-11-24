@@ -118,6 +118,15 @@ test.describe("Portfolio Production Verification", () => {
     ).toBeVisible();
     await page.getByRole("button", { name: "Clear Filter" }).click();
     await expect(page.getByText(/Filtering by Python & Pandas/i)).toBeHidden();
+
+    // Verify full-page site search returns cross-section matches as a list inside the dialog
+    await page.keyboard.press("Control+k");
+    await expect(dialog).toBeVisible();
+    await dialog.getByPlaceholder(/Type a command/i).fill("Eurocode 6");
+    await expect(dialog.getByText(/Masonry Module/i)).toBeVisible();
+    await expect(dialog.getByText(/match/i)).toBeVisible();
+    await dialog.getByText(/Masonry Module/i).click();
+    await expect(dialog).toBeHidden();
   });
 
   test("Schematics tabs, modal focus restoration, and Telemetry Simulator work end-to-end", async ({

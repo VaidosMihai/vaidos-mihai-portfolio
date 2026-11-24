@@ -728,150 +728,541 @@ function drawCariadRemScene({
 }
 
 /* ============================================================================
- * 2. BMW PARKING ASSISTANT — Parallel Bay, Neighbor Cars, 200m Trajectory & 12 USS
+ * 2. BMW PARKING ASSISTANT — Detailed 4-Phase 200m Parallel Maneuver, 12 USS & 4 Cam
  * ============================================================================ */
+function drawTopDownParkedCar(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  len: number,
+  wid: number,
+  colors: SceneColors
+) {
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Tires
+  ctx.fillStyle = colors.chassisStroke;
+  for (const wx of [-len * 0.29, len * 0.29]) {
+    ctx.fillRect(wx - 5, -wid / 2 - 2, 10, 2.5);
+    ctx.fillRect(wx - 5, wid / 2 - 0.5, 10, 2.5);
+  }
+
+  // Body shell
+  drawRoundRect(ctx, -len / 2, -wid / 2, len, wid, 7);
+  ctx.fillStyle = colors.nodeCardFill;
+  ctx.fill();
+  ctx.strokeStyle = colors.nodeCardStroke;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Side mirrors
+  ctx.fillStyle = colors.nodeCardStroke;
+  ctx.fillRect(len * 0.14, -wid / 2 - 3, 4, 3);
+  ctx.fillRect(len * 0.14, wid / 2, 4, 3);
+
+  // Windshield + rear glass
+  drawRoundRect(ctx, -len * 0.24, -wid / 2 + 5, len * 0.48, wid - 10, 3);
+  ctx.fillStyle = "rgba(148, 163, 184, 0.14)";
+  ctx.fill();
+  ctx.strokeStyle = colors.busTrace;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Subtle lights
+  ctx.fillStyle = colors.nodeSubText;
+  ctx.fillRect(len / 2 - 2, -wid / 2 + 5, 2, 5);
+  ctx.fillRect(len / 2 - 2, wid / 2 - 10, 2, 5);
+  ctx.fillStyle = colors.packetCrimson;
+  ctx.globalAlpha = 0.45;
+  ctx.fillRect(-len / 2, -wid / 2 + 5, 2, 5);
+  ctx.fillRect(-len / 2, wid / 2 - 10, 2, 5);
+
+  ctx.restore();
+}
+
+function evalCubicBezier(
+  t: number,
+  p0: number,
+  p1: number,
+  p2: number,
+  p3: number
+): number {
+  const u = 1 - t;
+  return (
+    u * u * u * p0 +
+    3 * u * u * t * p1 +
+    3 * u * t * t * p2 +
+    t * t * t * p3
+  );
+}
+
 function drawBmwParkingScene({
   ctx,
   width,
   height,
   phase,
   scrollNorm,
+  velocityBoost,
   colors,
 }: SceneDrawContext) {
   const compact = width < 640;
-  const bayTop = height * 0.2;
-  const bayHeight = compact ? 52 : 62;
-  const bayStart = width * 0.12;
-  const bayEnd = width * 0.88;
 
-  // Parking Curb & Bay Slots
-  ctx.strokeStyle = colors.chassisStroke;
-  ctx.lineWidth = 2;
+  // Vertical architecture zones
+  const curbY = compact ? 28 : 34;
+  const bayHeight = compact ? 52 : 62;
+  const bayBottom = curbY + bayHeight;
+  const roadBottom = compact ? height - 26 : height - 48;
+  const driveLaneCy = (bayBottom + roadBottom) * 0.52;
+
+  const bayStart = width * (compact ? 0.08 : 0.12);
+  const bayEnd = width * (compact ? 0.92 : 0.88);
+  const baySpan = bayEnd - bayStart;
+  const slot1End = bayStart + baySpan * 0.31;
+  const slot2End = bayStart + baySpan * 0.69;
+  const targetCx = (slot1End + slot2End) * 0.5;
+  const obs1X = (bayStart + slot1End) * 0.5;
+  const obs3X = (slot2End + bayEnd) * 0.5;
+  const obsY = curbY + bayHeight * 0.52;
+
+  // 1) Sidewalk / Curb Strip & Paving Joints
+  ctx.fillStyle = "rgba(148, 163, 184, 0.10)";
+  ctx.fillRect(0, 6, width, curbY - 6);
+  ctx.strokeStyle = colors.busTrace;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(bayStart, bayTop);
-  ctx.lineTo(bayEnd, bayTop);
+  for (let px = 40; px < width; px += 64) {
+    ctx.moveTo(px, 6);
+    ctx.lineTo(px, curbY);
+  }
   ctx.stroke();
 
+  // Curb Edge
+  ctx.strokeStyle = colors.chassisStroke;
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(0, curbY);
+  ctx.lineTo(width, curbY);
+  ctx.stroke();
+
+  // Road Asphalt Band & Lane Markings
+  ctx.fillStyle = "rgba(15, 23, 42, 0.22)";
+  ctx.fillRect(0, bayBottom, width, roadBottom - bayBottom);
+  ctx.strokeStyle = colors.chassisStroke;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(0, roadBottom);
+  ctx.lineTo(width, roadBottom);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Drive lane directional arrows
+  ctx.save();
+  ctx.strokeStyle = colors.chassisStroke;
+  ctx.globalAlpha = 0.25;
+  ctx.lineWidth = 1.5;
+  for (const ax of [width * 0.14, width * 0.46, width * 0.84]) {
+    ctx.beginPath();
+    ctx.moveTo(ax - 12, driveLaneCy);
+    ctx.lineTo(ax + 10, driveLaneCy);
+    ctx.lineTo(ax + 4, driveLaneCy - 4);
+    ctx.moveTo(ax + 10, driveLaneCy);
+    ctx.lineTo(ax + 4, driveLaneCy + 4);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 2) Parallel Parking Bays & Target Bay Hatchings
   ctx.save();
   ctx.setLineDash([5, 5]);
   ctx.strokeStyle = colors.busTrace;
-  ctx.lineWidth = 1.4;
-  const slot1End = bayStart + (bayEnd - bayStart) * 0.3;
-  const slot2End = bayStart + (bayEnd - bayStart) * 0.68;
-  ctx.strokeRect(bayStart, bayTop, slot1End - bayStart, bayHeight);
-  ctx.strokeRect(slot1End, bayTop, slot2End - slot1End, bayHeight);
-  ctx.strokeRect(slot2End, bayTop, bayEnd - slot2End, bayHeight);
+  ctx.lineWidth = 1.3;
+  ctx.strokeRect(bayStart, curbY + 1, slot1End - bayStart, bayHeight - 2);
+  ctx.strokeRect(slot2End, curbY + 1, bayEnd - slot2End, bayHeight - 2);
   ctx.restore();
 
-  // Parked Obstacle Vehicles (Slots 1 and 3)
-  const obstacleW = compact ? 58 : 88;
-  const obstacleH = compact ? 28 : 34;
-  const obs1X = (bayStart + slot1End) / 2;
-  const obs3X = (slot2End + bayEnd) / 2;
-  const obsY = bayTop + bayHeight / 2;
+  // Target center bay highlight border & corner L-brackets
+  ctx.fillStyle = "rgba(16, 185, 129, 0.08)";
+  ctx.fillRect(slot1End + 2, curbY + 2, slot2End - slot1End - 4, bayHeight - 4);
+  ctx.strokeStyle = colors.trajectoryStroke;
+  ctx.lineWidth = 1.6;
+  const brk = 10;
+  ctx.beginPath();
+  // Top-left & Top-right brackets
+  ctx.moveTo(slot1End + 3, curbY + 3 + brk);
+  ctx.lineTo(slot1End + 3, curbY + 3);
+  ctx.lineTo(slot1End + 3 + brk, curbY + 3);
+  ctx.moveTo(slot2End - 3 - brk, curbY + 3);
+  ctx.lineTo(slot2End - 3, curbY + 3);
+  ctx.lineTo(slot2End - 3, curbY + 3 + brk);
+  // Bottom-left & Bottom-right brackets
+  ctx.moveTo(slot1End + 3, bayBottom - 3 - brk);
+  ctx.lineTo(slot1End + 3, bayBottom - 3);
+  ctx.lineTo(slot1End + 3 + brk, bayBottom - 3);
+  ctx.moveTo(slot2End - 3 - brk, bayBottom - 3);
+  ctx.lineTo(slot2End - 3, bayBottom - 3);
+  ctx.lineTo(slot2End - 3, bayBottom - 3 - brk);
+  ctx.stroke();
 
-  for (const ox of [obs1X, obs3X]) {
-    drawRoundRect(ctx, ox - obstacleW / 2, obsY - obstacleH / 2, obstacleW, obstacleH, 7);
-    ctx.fillStyle = colors.nodeCardFill;
-    ctx.fill();
-    ctx.strokeStyle = colors.nodeCardStroke;
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
+  // Detailed Neighbor Parked Cars (Slots 1 & 3)
+  const obsW = compact ? 66 : 96;
+  const obsH = compact ? 26 : 32;
+  drawTopDownParkedCar(ctx, obs1X, obsY, obsW, obsH, colors);
+  drawTopDownParkedCar(ctx, obs3X, obsY, obsW, obsH, colors);
+
+  // Target Bay Header
+  ctx.fillStyle = colors.trajectoryStroke;
+  ctx.font = "700 8.5px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("TARGET BAY • 5.85m (200m REPLAY)", targetCx, curbY + 13);
+
+  // 3) 4-Phase Autonomous Parallel Parking Choreography
+  const loopSpeed = 0.045 + velocityBoost * 0.03;
+  const cycle =
+    phase === 0 ? 0.56 : (phase * loopSpeed + scrollNorm * 0.15) % 1;
+
+  const egoLen = compact ? 68 : 94;
+  const egoWid = compact ? 28 : 34;
+
+  const scanStartX = bayStart + egoLen * 0.55;
+  const stagingX = obs3X + (compact ? 14 : 20);
+  const stagingY = driveLaneCy;
+  const endX = targetCx;
+  const endY = obsY + 2;
+
+  // Cubic Bezier reverse S-curve control points (Staging -> Target Bay)
+  const cp1X = stagingX - (stagingX - endX) * 0.42;
+  const cp1Y = stagingY;
+  const cp2X = endX + (stagingX - endX) * 0.45;
+  const cp2Y = endY;
+
+  let egoX: number;
+  let egoY: number;
+  let egoAngle = 0;
+  let steerAngle = 0;
+  let steerDeg = 0;
+  let gear: "D" | "R" | "P" = "D";
+  let isReversing = false;
+  let isBraking = false;
+  let stageLabel = "BAY SCAN";
+  let minDistMeters = 1.65;
+
+  if (cycle < 0.2) {
+    // Phase 1: Forward Bay Scan past Target Bay
+    const t = cycle / 0.2;
+    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    egoX = scanStartX + (stagingX - scanStartX) * ease;
+    egoY = stagingY;
+    gear = "D";
+    stageLabel = "SCANNING BAY";
+    minDistMeters = 1.48;
+  } else if (cycle < 0.28) {
+    // Phase 2: Stop & Shift to Reverse (Wheels lock right +34 deg)
+    const t = (cycle - 0.2) / 0.08;
+    egoX = stagingX;
+    egoY = stagingY;
+    gear = "R";
+    isBraking = t < 0.6;
+    isReversing = true;
+    steerAngle = 0.42 * Math.min(t * 1.6, 1);
+    steerDeg = Math.round(34 * Math.min(t * 1.6, 1));
+    stageLabel = "SHIFT R • PLAN S-CURVE";
+    minDistMeters = 1.32;
+  } else if (cycle < 0.78) {
+    // Phase 3: Smooth Cubic Bezier Reverse S-Curve into Bay
+    const rawT = (cycle - 0.28) / 0.5;
+    const t = rawT < 0.5 ? 2 * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 2) / 2;
+    egoX = evalCubicBezier(t, stagingX, cp1X, cp2X, endX);
+    egoY = evalCubicBezier(t, stagingY, cp1Y, cp2Y, endY);
+    // Physically accurate rear-left entry yaw: nose angles slightly clockwise (+) then straightens
+    egoAngle = 0.44 * Math.sin(t * Math.PI);
+    // Steering flips from +34° lock-in to -30° counter-steer halfway through
+    const sWave = Math.sin(t * Math.PI * 2);
+    steerAngle = 0.36 * sWave;
+    steerDeg = Math.round(34 * sWave);
+    gear = "R";
+    isReversing = true;
+    stageLabel = "AUTONOMOUS S-CURVE";
+    minDistMeters = Number((1.32 - 0.91 * t).toFixed(2));
+  } else {
+    // Phase 4: Parked & Centered inside Target Bay
+    egoX = endX;
+    egoY = endY;
+    gear = "P";
+    isBraking = cycle < 0.85;
+    stageLabel = "PARKED • 200m OK";
+    minDistMeters = 0.41;
   }
 
-  // Target Parking Slot Label
-  const targetCx = (slot1End + slot2End) / 2;
-  ctx.fillStyle = colors.trajectoryStroke;
-  ctx.font = "700 9px monospace";
-  ctx.textAlign = "center";
-  ctx.fillText("TARGET BAY (200m REPLAY)", targetCx, bayTop + 14);
+  // 4) Draw Swept Wheel Rails & S-Curve Trajectory when Shift/Reverse/Parked
+  if (cycle >= 0.18) {
+    ctx.save();
+    // Swept wheel-track boundary corridor
+    ctx.strokeStyle = colors.trajectoryStroke;
+    ctx.globalAlpha = 0.24;
+    ctx.lineWidth = egoWid * 0.72;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(stagingX, stagingY);
+    ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+    ctx.stroke();
 
-  // Ego BMW Vehicle Executing Smooth Reverse S-Curve into Center Bay
-  const parkProgress = 0.5 + Math.sin(phase * 0.45 + scrollNorm * Math.PI * 2) * 0.45;
-  const startX = compact ? width * 0.72 : width * 0.7;
-  const startY = height * 0.72;
-  const endX = targetCx;
-  const endY = obsY + 4;
+    // Crisp dashed trajectory centerline
+    ctx.globalAlpha = 0.92;
+    ctx.setLineDash([6, 4]);
+    ctx.lineDashOffset = -(phase * 1.4);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(stagingX, stagingY);
+    ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+    ctx.stroke();
+    ctx.restore();
+  }
 
-  // Reverse S-curve Trajectory Preview
-  ctx.save();
-  ctx.setLineDash([6, 4]);
-  ctx.strokeStyle = colors.trajectoryStroke;
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.moveTo(startX, startY);
-  ctx.bezierCurveTo(startX - 70, startY, endX + 45, endY + 34, endX, endY);
-  ctx.stroke();
-  ctx.restore();
+  // Clearance dimension arrows inside Bay 2 when maneuvering or parked
+  if (cycle >= 0.7) {
+    ctx.save();
+    ctx.strokeStyle = colors.packetAmber;
+    ctx.fillStyle = colors.packetAmber;
+    ctx.lineWidth = 1.2;
+    const frontClearX0 = endX + egoLen / 2 + 2;
+    const frontClearX1 = obs3X - obsW / 2 - 2;
+    const rearClearX0 = obs1X + obsW / 2 + 2;
+    const rearClearX1 = endX - egoLen / 2 - 2;
 
-  const egoX = startX + (endX - startX) * parkProgress;
-  const egoY = startY + (endY - startY) * (parkProgress * parkProgress);
-  const egoAngle = -0.28 * Math.sin(parkProgress * Math.PI);
-  const egoLen = compact ? 78 : 104;
-  const egoWid = compact ? 34 : 42;
+    if (frontClearX1 > frontClearX0 + 8) {
+      ctx.beginPath();
+      ctx.moveTo(frontClearX0, obsY);
+      ctx.lineTo(frontClearX1, obsY);
+      ctx.stroke();
+    }
+    if (rearClearX1 > rearClearX0 + 8) {
+      ctx.beginPath();
+      ctx.moveTo(rearClearX0, obsY);
+      ctx.lineTo(rearClearX1, obsY);
+      ctx.stroke();
+    }
+    ctx.font = "700 8px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("0.41m", (frontClearX0 + frontClearX1) * 0.5, obsY - 5);
+    ctx.fillText("0.42m", (rearClearX0 + rearClearX1) * 0.5, obsY - 5);
+    ctx.restore();
+  }
 
+  // 5) Ego BMW with 12 USS Sensors, 4 Surround Cameras & Steered Wheels
   ctx.save();
   ctx.translate(egoX, egoY);
   ctx.rotate(egoAngle);
 
-  // 12 Ultrasonic Sonar Rings (Front, Rear, Sides)
+  // 4 Surround-View Fish-Eye Camera Cones (Front, Rear, Left Mirror, Right Mirror)
+  const drawFovCone = (
+    ox: number,
+    oy: number,
+    ang1: number,
+    ang2: number,
+    len: number
+  ) => {
+    const grad = ctx.createRadialGradient(ox, oy, 2, ox, oy, len);
+    grad.addColorStop(0, colors.visionConeStart);
+    grad.addColorStop(1, colors.visionConeEnd);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.arc(ox, oy, len, ang1, ang2);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  drawFovCone(egoLen / 2, 0, -0.58, 0.58, compact ? 38 : 54);
+  drawFovCone(-egoLen / 2, 0, Math.PI - 0.58, Math.PI + 0.58, compact ? 42 : 58);
+  drawFovCone(egoLen * 0.14, -egoWid / 2 - 2, -Math.PI * 0.85, -Math.PI * 0.15, compact ? 32 : 46);
+  drawFovCone(egoLen * 0.14, egoWid / 2 + 2, Math.PI * 0.15, Math.PI * 0.85, compact ? 32 : 46);
+
+  // 12 Ultrasonic Sensor Wave Rings (Front 4, Rear 4, Left 2, Right 2)
+  const ussClose = minDistMeters < 0.65;
   for (let ring = 0; ring < 3; ring++) {
     const rPhase = (phase * 0.65 + ring * 0.33) % 1;
-    const alpha = (1 - rPhase) * 0.6;
-    const rad = 14 + rPhase * 28;
+    const alpha = (1 - rPhase) * 0.65;
+    const rad = 11 + rPhase * (compact ? 22 : 30);
+
+    ctx.lineWidth = 1.25;
+    // Front & Sides in cool sonar cyan
     ctx.strokeStyle = colors.sonarArc.replace("ALPHA", alpha.toFixed(3));
-    ctx.lineWidth = 1.3;
-
     ctx.beginPath();
-    ctx.arc(egoLen / 2, 0, rad, -0.55, 0.55);
+    ctx.arc(egoLen / 2, 0, rad, -0.52, 0.52);
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.arc(-egoLen / 2, 0, rad, Math.PI - 0.55, Math.PI + 0.55);
-    ctx.stroke();
+    for (const sx of [-egoLen * 0.28, egoLen * 0.28]) {
+      ctx.beginPath();
+      ctx.arc(sx, -egoWid / 2, rad * 0.68, -Math.PI * 0.78, -Math.PI * 0.22);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(sx, egoWid / 2, rad * 0.68, Math.PI * 0.22, Math.PI * 0.78);
+      ctx.stroke();
+    }
 
-    ctx.beginPath();
-    ctx.arc(0, -egoWid / 2, rad * 0.7, -Math.PI * 0.8, -Math.PI * 0.2);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(0, egoWid / 2, rad * 0.7, Math.PI * 0.2, Math.PI * 0.8);
-    ctx.stroke();
+    // Rear sensors turn amber when reversing close to parked vehicle/curb
+    if (ussClose && isReversing) {
+      ctx.save();
+      ctx.strokeStyle = colors.packetAmber;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(-egoLen / 2, 0, rad, Math.PI - 0.55, Math.PI + 0.55);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(-egoLen / 2, 0, rad, Math.PI - 0.55, Math.PI + 0.55);
+      ctx.stroke();
+    }
   }
 
-  // Surround Camera FOV Wedges (Side Mirrors)
-  ctx.fillStyle = colors.visionConeStart;
-  ctx.beginPath();
-  ctx.moveTo(6, -egoWid / 2);
-  ctx.lineTo(-14, -egoWid / 2 - 22);
-  ctx.lineTo(26, -egoWid / 2 - 22);
-  ctx.closePath();
-  ctx.fill();
+  // Rear wheels (fixed alignment)
+  ctx.fillStyle = colors.chassisStroke;
+  ctx.fillRect(-egoLen * 0.3 - 5, -egoWid / 2 - 2.5, 11, 3);
+  ctx.fillRect(-egoLen * 0.3 - 5, egoWid / 2 - 0.5, 11, 3);
 
-  // Ego Car Body
-  drawRoundRect(ctx, -egoLen / 2, -egoWid / 2, egoLen, egoWid, 9);
+  // Front wheels (dynamically steered with steerAngle)
+  for (const wy of [-egoWid / 2 - 1, egoWid / 2 + 1]) {
+    ctx.save();
+    ctx.translate(egoLen * 0.29, wy);
+    ctx.rotate(steerAngle);
+    ctx.fillStyle = colors.chassisStroke;
+    ctx.fillRect(-5.5, -1.5, 11, 3);
+    ctx.restore();
+  }
+
+  // Main Sculpted BMW Chassis
+  drawRoundRect(ctx, -egoLen / 2, -egoWid / 2, egoLen, egoWid, 8);
   ctx.fillStyle = colors.chassisFill;
   ctx.fill();
   ctx.strokeStyle = colors.chassisAccent;
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  drawRoundRect(ctx, -egoLen * 0.18, -egoWid / 2 + 6, egoLen * 0.4, egoWid - 12, 4);
+  // Hood Sculpt Lines & Dual-Kidney Grille
+  ctx.strokeStyle = colors.busTrace;
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(egoLen * 0.14, -egoWid * 0.22);
+  ctx.lineTo(egoLen * 0.44, -egoWid * 0.14);
+  ctx.moveTo(egoLen * 0.14, egoWid * 0.22);
+  ctx.lineTo(egoLen * 0.44, egoWid * 0.14);
+  ctx.stroke();
+
+  ctx.fillStyle = colors.chassisAccent;
+  ctx.fillRect(egoLen / 2 - 2.5, -5.5, 2.5, 4);
+  ctx.fillRect(egoLen / 2 - 2.5, 1.5, 2.5, 4);
+
+  // Side Mirrors with Surround Camera Pods
+  ctx.fillStyle = colors.chassisAccent;
+  ctx.fillRect(egoLen * 0.14, -egoWid / 2 - 3.5, 4.5, 3.5);
+  ctx.fillRect(egoLen * 0.14, egoWid / 2, 4.5, 3.5);
+
+  // Panoramic Windshield & Cabin Glass
+  drawRoundRect(
+    ctx,
+    -egoLen * 0.26,
+    -egoWid / 2 + 5,
+    egoLen * 0.48,
+    egoWid - 10,
+    4
+  );
   ctx.fillStyle = colors.canopyFill;
   ctx.fill();
+  ctx.strokeStyle = colors.chassisAccent;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 12 Physical Ultrasonic Emitter Dots on Bumper & Side Fenders
+  ctx.fillStyle = colors.packetPrimary;
+  const emitterCoords: [number, number][] = [
+    [egoLen / 2 - 1, -egoWid * 0.34],
+    [egoLen / 2, -egoWid * 0.12],
+    [egoLen / 2, egoWid * 0.12],
+    [egoLen / 2 - 1, egoWid * 0.34],
+    [-egoLen / 2 + 1, -egoWid * 0.34],
+    [-egoLen / 2, -egoWid * 0.12],
+    [-egoLen / 2, egoWid * 0.12],
+    [-egoLen / 2 + 1, egoWid * 0.34],
+    [egoLen * 0.34, -egoWid / 2],
+    [-egoLen * 0.34, -egoWid / 2],
+    [egoLen * 0.34, egoWid / 2],
+    [-egoLen * 0.34, egoWid / 2],
+  ];
+  for (const [ux, uy] of emitterCoords) {
+    ctx.beginPath();
+    ctx.arc(ux, uy, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Headlights, Brake Lamps & Reverse White Indicator Lamps
+  ctx.fillStyle = colors.packetPrimary;
+  ctx.fillRect(egoLen / 2 - 2.5, -egoWid / 2 + 3, 2.5, 4.5);
+  ctx.fillRect(egoLen / 2 - 2.5, egoWid / 2 - 7.5, 2.5, 4.5);
+
+  ctx.fillStyle = colors.packetCrimson;
+  ctx.fillRect(-egoLen / 2, -egoWid / 2 + 3, isBraking ? 3.5 : 2, 5);
+  ctx.fillRect(-egoLen / 2, egoWid / 2 - 8, isBraking ? 3.5 : 2, 5);
+
+  if (isReversing) {
+    ctx.fillStyle = "#F8FAFC";
+    ctx.fillRect(-egoLen / 2, -egoWid / 2 + 8.5, 2.5, 3);
+    ctx.fillRect(-egoLen / 2, egoWid / 2 - 11.5, 2.5, 3);
+  }
+
   ctx.restore();
 
+  // 6) Sidewalk Telemetry Readout & Bottom Architecture Nodes
+  ctx.textAlign = "left";
+  ctx.font = "700 9px monospace";
+  ctx.fillStyle =
+    gear === "R"
+      ? colors.packetAmber
+      : gear === "P"
+        ? colors.packetSuccess
+        : colors.packetPrimary;
+  ctx.fillText(
+    `GEAR: ${gear} • ${stageLabel} • STEER ${steerDeg >= 0 ? `+${steerDeg}` : steerDeg}° • DIST ${minDistMeters.toFixed(2)}m`,
+    compact ? 12 : bayStart,
+    curbY - 10
+  );
+
   if (!compact) {
+    const cardY = height - 22;
     drawPill(
       ctx,
       width * 0.2,
-      height * 0.76,
-      138,
-      36,
+      cardY,
+      154,
+      30,
+      "SENSOR FUSION",
+      "12 USS + 4 SURROUND CAM",
+      colors,
+      colors.packetPrimary
+    );
+    drawPill(
+      ctx,
+      width * 0.5,
+      cardY,
+      154,
+      30,
       "GTEST / GMOCK",
       "95% UNIT COVERAGE",
       colors,
       colors.trajectoryStroke
+    );
+    drawPill(
+      ctx,
+      width * 0.8,
+      cardY,
+      154,
+      30,
+      "CMAKE / BAZEL",
+      "200m TRAJECTORY REPLAY",
+      colors,
+      colors.chassisAccent
     );
   }
 }

@@ -271,9 +271,10 @@ export default function EngineeringShowcaseTransition() {
 
   return (
     <section
+      id="showcase"
       ref={sectionRef}
       aria-label="Project-specific interactive engineering simulations"
-      className="relative w-full py-12 sm:py-16 overflow-hidden border-y border-line-subtle bg-gradient-to-b from-canvas/85 via-surface-recessed/70 to-canvas/90 backdrop-blur-md print:hidden"
+      className="relative w-full py-12 sm:py-16 overflow-hidden border-y border-line-subtle bg-gradient-to-b from-canvas/85 via-surface-recessed/70 to-canvas/90 backdrop-blur-md print:hidden scroll-mt-20"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
         {/* Top Bar: Separate Project Scene Tabs & Dedicated Telemetry HUD */}

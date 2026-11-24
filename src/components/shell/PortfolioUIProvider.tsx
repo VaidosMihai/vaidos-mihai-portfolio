@@ -4,10 +4,16 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 import { useLenis } from "@/components/motion/SmoothScrollProvider";
 import type { SectionId } from "@/lib/filters";
+import {
+  applySectionSearchHighlight,
+  clearSearchHighlights,
+} from "@/lib/searchHighlight";
 
 interface PortfolioUIContextValue {
   isCommandMenuOpen: boolean;
@@ -17,6 +23,11 @@ interface PortfolioUIContextValue {
   activeTechFilter: string | undefined;
   setActiveTechFilter: (filter: string | undefined) => void;
   navigateTo: (sectionId: SectionId) => void;
+  navigateAndHighlight: (
+    sectionId: SectionId,
+    query: string,
+    fallbackLabel?: string
+  ) => void;
   scrollToTop: () => void;
 }
 
@@ -28,6 +39,7 @@ const PortfolioUIContext = createContext<PortfolioUIContextValue>({
   activeTechFilter: undefined,
   setActiveTechFilter: () => {},
   navigateTo: () => {},
+  navigateAndHighlight: () => {},
   scrollToTop: () => {},
 });
 
@@ -41,10 +53,27 @@ export default function PortfolioUIProvider({
   children: React.ReactNode;
 }) {
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
-  const [activeTechFilter, setActiveTechFilter] = useState<string | undefined>(
-    undefined
-  );
+  const [activeTechFilter, setActiveTechFilterState] = useState<
+    string | undefined
+  >(undefined);
   const lenis = useLenis();
+  const pendingScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  const setActiveTechFilter = useCallback((filter: string | undefined) => {
+    clearSearchHighlights();
+    setActiveTechFilterState(filter);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (pendingScrollTimerRef.current) {
+        clearTimeout(pendingScrollTimerRef.current);
+      }
+      clearSearchHighlights();
+    };
+  }, []);
 
   const openCommandMenu = useCallback(() => setIsCommandMenuOpen(true), []);
   const closeCommandMenu = useCallback(() => setIsCommandMenuOpen(false), []);
@@ -67,6 +96,41 @@ export default function PortfolioUIProvider({
       } else {
         el.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
       }
+    },
+    [lenis]
+  );
+
+  const navigateAndHighlight = useCallback(
+    (sectionId: SectionId, query: string, fallbackLabel?: string) => {
+      if (pendingScrollTimerRef.current) {
+        clearTimeout(pendingScrollTimerRef.current);
+      }
+
+      // Wait 1 frame/tick so Experience filter reset and modal close settle cleanly
+      pendingScrollTimerRef.current = setTimeout(() => {
+        const targetMark = applySectionSearchHighlight(
+          sectionId,
+          query,
+          fallbackLabel
+        );
+        const scrollTarget = targetMark ?? document.getElementById(sectionId);
+        if (!scrollTarget) return;
+
+        const reducedMotion = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+
+        if (lenis && !reducedMotion) {
+          lenis.scrollTo(scrollTarget, {
+            offset: targetMark ? -140 : 0,
+          });
+        } else {
+          scrollTarget.scrollIntoView({
+            block: targetMark ? "center" : "start",
+            behavior: reducedMotion ? "auto" : "smooth",
+          });
+        }
+      }, 65);
     },
     [lenis]
   );
@@ -95,6 +159,7 @@ export default function PortfolioUIProvider({
         activeTechFilter,
         setActiveTechFilter,
         navigateTo,
+        navigateAndHighlight,
         scrollToTop,
       }}
     >

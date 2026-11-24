@@ -79,6 +79,7 @@ export default function CommandMenu() {
     closeCommandMenu,
     toggleCommandMenu,
     navigateTo,
+    navigateAndHighlight,
     setActiveTechFilter,
   } = usePortfolioUI();
   const { theme, setTheme, toggleTheme } = useTheme();
@@ -150,11 +151,12 @@ export default function CommandMenu() {
   };
 
   const handleSelectPageResult = (entry: SiteSearchEntry) => {
+    const activeQuery = query.trim();
     handleSelectAction(() => {
       if (entry.kind === "experience") {
         setActiveTechFilter(undefined);
       }
-      navigateTo(entry.sectionId);
+      navigateAndHighlight(entry.sectionId, activeQuery, entry.title);
     });
   };
 

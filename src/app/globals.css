@@ -160,6 +160,46 @@
   color: var(--selection-fg);
 }
 
+/* Temporary Search Match Highlight (Yellow Underline + Marker Glow) */
+.search-hit-mark {
+  background-color: rgba(250, 204, 21, 0.44);
+  color: #78350f;
+  text-decoration: underline;
+  text-decoration-color: #d97706;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  border-radius: 3px;
+  padding: 0 2px;
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.35);
+  transition: opacity 400ms ease, background-color 400ms ease, box-shadow 400ms ease;
+}
+
+.dark .search-hit-mark {
+  background-color: rgba(250, 204, 21, 0.28);
+  color: #fde047;
+  text-decoration-color: #facc15;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.28);
+}
+
+.search-hit-mark[data-fading="true"] {
+  opacity: 0.25;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.search-hit-heading {
+  outline: 2px solid #eab308;
+  outline-offset: 6px;
+  border-radius: 8px;
+  background-color: rgba(250, 204, 21, 0.14);
+  transition: opacity 400ms ease, background-color 400ms ease, outline-color 400ms ease;
+}
+
+.search-hit-heading[data-fading="true"] {
+  outline-color: transparent;
+  background-color: transparent;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -119,7 +119,7 @@ test.describe("Portfolio Production Verification", () => {
     await page.getByRole("button", { name: "Clear Filter" }).click();
     await expect(page.getByText(/Filtering by Python & Pandas/i)).toBeHidden();
 
-    // Verify full-page site search returns cross-section matches as a list inside the dialog
+    // Verify full-page site search returns cross-section matches and highlights target text in yellow
     await page.keyboard.press("Control+k");
     await expect(dialog).toBeVisible();
     await dialog.getByPlaceholder(/Type a command/i).fill("Eurocode 6");
@@ -127,6 +127,9 @@ test.describe("Portfolio Production Verification", () => {
     await expect(dialog.getByText(/match/i)).toBeVisible();
     await dialog.getByText(/Masonry Module/i).click();
     await expect(dialog).toBeHidden();
+    await expect(
+      page.locator("#experience mark[data-search-highlight='true']").first()
+    ).toContainText(/Eurocode 6/i);
   });
 
   test("Schematics tabs, modal focus restoration, and Telemetry Simulator work end-to-end", async ({

@@ -9,7 +9,7 @@ import {
   useVelocity,
   type MotionValue,
 } from "framer-motion";
-import { Activity, ChevronLeft, ChevronRight, Radio } from "lucide-react";
+import { Activity, ChevronLeft, ChevronRight, Pause, Play, Radio } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { getThemePalette } from "@/lib/theme";
 import {
@@ -111,6 +111,7 @@ export default function EngineeringShowcaseTransition() {
 
   const currentScene = PROJECT_SCENES[activeIndex] ?? PROJECT_SCENES[0];
   const shouldReduceMotion = Boolean(useReducedMotion());
+  const [isAnimating, setIsAnimating] = useState(true);
   const { theme } = useTheme();
   const palette = getThemePalette(theme);
 
@@ -118,6 +119,7 @@ export default function EngineeringShowcaseTransition() {
   const sceneIdRef = useRef<ProjectSceneId>(currentScene?.id ?? "cariad");
   const velocityRef = useRef(0);
   const progressRef = useRef(0);
+  const phaseRef = useRef(0);
   const isVisibleRef = useRef(true);
   const drawOnceRef = useRef<(() => void) | null>(null);
 
@@ -175,20 +177,18 @@ export default function EngineeringShowcaseTransition() {
 
     syncSize();
 
-    let phase = 0;
-
     const drawFrame = (dtFactor: number) => {
       const absVel = Math.abs(velocityRef.current);
       const velocityBoost = Math.min(absVel / 320, 3.2);
       if (dtFactor > 0) {
-        phase += (0.025 + velocityBoost * 0.04) * dtFactor;
+        phaseRef.current += (0.025 + velocityBoost * 0.04) * dtFactor;
       }
 
       renderProjectScene(sceneIdRef.current, {
         ctx,
         width,
         height,
-        phase,
+        phase: phaseRef.current,
         scrollNorm: progressRef.current,
         velocityBoost,
         colors: paletteRef.current.engineeringShowcase,
@@ -197,7 +197,7 @@ export default function EngineeringShowcaseTransition() {
 
     const resizeObserver = new ResizeObserver(() => {
       syncSize();
-      if (shouldReduceMotion || document.hidden || !isVisibleRef.current) {
+      if (!isAnimating || document.hidden || !isVisibleRef.current) {
         drawFrame(0);
       }
     });
@@ -209,7 +209,7 @@ export default function EngineeringShowcaseTransition() {
 
     const renderLoop = () => {
       animId = 0;
-      if (shouldReduceMotion || document.hidden || !isVisibleRef.current) {
+      if (!isAnimating || document.hidden || !isVisibleRef.current) {
         drawFrame(0);
         return;
       }
@@ -222,7 +222,7 @@ export default function EngineeringShowcaseTransition() {
         cancelAnimationFrame(animId);
         animId = 0;
       }
-      if (shouldReduceMotion) {
+      if (!isAnimating) {
         drawFrame(0);
         return;
       }
@@ -250,7 +250,7 @@ export default function EngineeringShowcaseTransition() {
       document.removeEventListener("visibilitychange", startOrStop);
       if (animId) cancelAnimationFrame(animId);
     };
-  }, [shouldReduceMotion]);
+  }, [isAnimating]);
 
   if (!currentScene) return null;
 
@@ -361,6 +361,24 @@ export default function EngineeringShowcaseTransition() {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
+                aria-label={isAnimating ? "Pause animation" : "Play animation"}
+                onClick={() => setIsAnimating((prev) => !prev)}
+                className="inline-flex items-center gap-1 min-h-[28px] px-2 rounded-lg bg-surface border border-line-subtle hover:border-line-strong text-[11px] font-mono text-ink-muted hover:text-ink-primary transition-colors cursor-pointer"
+              >
+                {isAnimating ? (
+                  <>
+                    <Pause className="w-3 h-3" aria-hidden="true" />
+                    <span className="hidden sm:inline">Pause</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3 h-3 text-status-emerald-ink" aria-hidden="true" />
+                    <span>Play</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
                 aria-label="Previous project simulation"
                 onClick={() =>
                   setActiveIndex(
@@ -389,7 +407,7 @@ export default function EngineeringShowcaseTransition() {
           </div>
 
           {/* 2D Canvas Stage */}
-          <div className="relative h-56 sm:h-64 w-full">
+          <div className="relative h-64 sm:h-[280px] w-full">
             <canvas
               ref={canvasRef}
               aria-hidden="true"

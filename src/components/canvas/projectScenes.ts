@@ -29,7 +29,7 @@ export const PROJECT_SCENES: ProjectSceneMeta[] = [
     badge: "01 // CARIAD (VOLKSWAGEN GROUP)",
     title: "REM Quadkey Tile Streaming & HTTP 200/400 Monitoring",
     caption:
-      "2-lane road telemetry at 60 km/h -> vehicle prefetches 2 square Z16 Quadkey tiles ahead -> HTTP 200 (green) / HTTP 400 (red).",
+      "2-lane road at 60 km/h -> +2 square Quadkey prefetch ahead -> green/red localization route line tracks vehicle lock per tile.",
     scrollBoostLabel: "SWARM",
     baseRate: 10,
     unit: "KB/km",
@@ -473,13 +473,58 @@ function drawCariadRemScene({
   ctx.stroke();
   ctx.restore();
 
-  // C) Moving Ego Vehicle strictly centered inside Lane 2 (right/bottom lane)
+  // C) Moving Ego Vehicle & Per-Tile Localization Route Line along Lane 2
   const carLen = compact ? 36 : 44;
   const carWid = compact ? 15 : 18;
   const carX = carFrontX - carLen / 2;
   const carY = bottomLaneCenterY;
   const camX = carFrontX - 4;
   const camY = carY - carWid / 2 + 2;
+
+  // Determine which tile currently holds the vehicle center for localization status
+  const currentTileIdx = Math.floor((carX - tilesStartX) / tileStep);
+  const currentLocTile =
+    currentTileIdx >= 0 && currentTileIdx < tileCount
+      ? CARIAD_TILES[currentTileIdx]
+      : undefined;
+
+  // Route Localization Trace Line along the car's driven path in Lane 2:
+  // green across HTTP 200 tiles (localized), turns red across HTTP 400 tiles (unlocalized)
+  for (let i = 0; i < tileCount; i++) {
+    const tileMeta = CARIAD_TILES[i];
+    if (!tileMeta) continue;
+    const tx = tilesStartX + i * tileStep;
+    if (carX <= tx) break;
+
+    const segStart = tx;
+    const segEnd =
+      i === tileCount - 1
+        ? Math.min(carX, tx + tileSize)
+        : Math.min(carX, tx + tileStep);
+    if (segEnd <= segStart) continue;
+
+    const locColor = tileMeta.fail
+      ? colors.packetCrimson
+      : colors.packetSuccess;
+
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = locColor;
+    ctx.globalAlpha = 0.28;
+    ctx.lineWidth = 6.5;
+    ctx.beginPath();
+    ctx.moveTo(segStart, bottomLaneCenterY);
+    ctx.lineTo(segEnd, bottomLaneCenterY);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.96;
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(segStart, bottomLaneCenterY);
+    ctx.lineTo(segEnd, bottomLaneCenterY);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Front Dashcam Long-Range Lookahead Cone reaching +2 squares ahead
   const coneLen = Math.min(tileStep * 1.9, compact ? 95 : 152);
@@ -512,7 +557,11 @@ function drawCariadRemScene({
   ctx.fillStyle = colors.chassisFill;
   ctx.fill();
   ctx.lineWidth = 1.6;
-  ctx.strokeStyle = colors.chassisStroke;
+  ctx.strokeStyle = currentLocTile
+    ? currentLocTile.fail
+      ? colors.packetCrimson
+      : colors.packetSuccess
+    : colors.chassisStroke;
   ctx.stroke();
 
   // Windshield & Cabin
@@ -538,22 +587,43 @@ function drawCariadRemScene({
   ctx.fillRect(carX - carLen / 2, carY - carWid / 2 + 3, 2, 3);
   ctx.fillRect(carX - carLen / 2, carY + carWid / 2 - 6, 2, 3);
 
-  // Dashcam sensor dot
+  // Dashcam sensor dot & Roof GPS Localization Status Beacon
   ctx.fillStyle = colors.packetAmber;
   ctx.beginPath();
   ctx.arc(camX, camY + carWid * 0.34, 2.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Live speed readout on approach & 2-lane label
+  if (currentLocTile) {
+    ctx.fillStyle = currentLocTile.fail
+      ? colors.packetCrimson
+      : colors.packetSuccess;
+    ctx.beginPath();
+    ctx.arc(carX - carLen * 0.08, carY, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Live speed & localization readout along the road shoulder
   ctx.textAlign = "left";
   ctx.font = "700 9.5px monospace";
   ctx.fillStyle = speedKmh === 0 ? colors.packetAmber : colors.packetPrimary;
   ctx.fillText(`SPD ${speedKmh} km/h`, corridorLeft + 2, roadTop - 10);
 
+  ctx.font = "700 9px monospace";
+  if (!currentLocTile) {
+    ctx.fillStyle = colors.packetAmber;
+    ctx.fillText("• LOC: STANDBY", corridorLeft + 88, roadTop - 10);
+  } else if (currentLocTile.fail) {
+    ctx.fillStyle = colors.packetCrimson;
+    ctx.fillText("• LOC: LOST (HTTP 400)", corridorLeft + 88, roadTop - 10);
+  } else {
+    ctx.fillStyle = colors.packetSuccess;
+    ctx.fillText("• LOC: LOCKED (HTTP 200)", corridorLeft + 88, roadTop - 10);
+  }
+
   if (!compact) {
     ctx.fillStyle = colors.nodeSubText;
     ctx.font = "600 8.5px monospace";
-    ctx.fillText("2-LANE ROAD • +2 TILE PREFETCH", corridorLeft + 94, roadTop - 10);
+    ctx.fillText("2-LANE ROAD • +2 TILE PREFETCH", corridorLeft + 250, roadTop - 10);
   }
 
   // D) Request (Dashcam -> Server) & Response (Server -> Car/Camera) Curves
@@ -643,11 +713,17 @@ function drawCariadRemScene({
     ctx.textAlign = "left";
     ctx.font = "600 9.5px monospace";
     ctx.fillStyle = colors.packetAmber;
-    ctx.fillText("■ LOADING", corridorLeft, serverY - 6);
+    ctx.fillText("■ LOADING", corridorLeft, serverY - 8);
     ctx.fillStyle = colors.packetSuccess;
-    ctx.fillText("■ HTTP 200 OK", corridorLeft + 84, serverY - 6);
+    ctx.fillText("■ HTTP 200 OK", corridorLeft + 84, serverY - 8);
     ctx.fillStyle = colors.packetCrimson;
-    ctx.fillText("■ HTTP 400 FAILED", corridorLeft + 184, serverY - 6);
+    ctx.fillText("■ HTTP 400 FAILED", corridorLeft + 184, serverY - 8);
+
+    ctx.font = "600 8.5px monospace";
+    ctx.fillStyle = colors.packetSuccess;
+    ctx.fillText("━ ROUTE: LOCALIZED", corridorLeft, serverY + 7);
+    ctx.fillStyle = colors.packetCrimson;
+    ctx.fillText("━ ROUTE: NOT LOCALIZED", corridorLeft + 132, serverY + 7);
   }
 }
 

@@ -9,7 +9,17 @@ import {
   useVelocity,
   type MotionValue,
 } from "framer-motion";
-import { Activity, ChevronLeft, ChevronRight, Pause, Play, Radio } from "lucide-react";
+import {
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  Pause,
+  Play,
+  Radio,
+  RotateCcw,
+  Scissors,
+  Sparkles,
+} from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { getThemePalette } from "@/lib/theme";
 import {
@@ -18,6 +28,24 @@ import {
   type ProjectSceneId,
   type ProjectSceneMeta,
 } from "./projectScenes";
+import {
+  GRAITEC_MODULES,
+  GRAITEC_NODE_SPECS,
+  computeAutoShowcaseState,
+  type GraitecCadRenderState,
+  type GraitecModuleId,
+  type GraitecTreeNodeId,
+} from "./graitecCadScene";
+import GraitecMvvmInspector from "./GraitecMvvmInspector";
+
+const EMPTY_GRAITEC_MODULES: Record<GraitecModuleId, boolean> = {
+  footing: false,
+  column: false,
+  beam: false,
+  slab: false,
+  wall: false,
+  masonry: false,
+};
 
 function ProjectTelemetryHud({
   scene,
@@ -123,6 +151,40 @@ export default function EngineeringShowcaseTransition() {
   const isVisibleRef = useRef(true);
   const drawOnceRef = useRef<(() => void) | null>(null);
 
+  // Interactive Scene 04 (Graitec 3D CAD + Pure MVVM) state
+  const [graitecMode, setGraitecMode] = useState<"auto" | "manual">("auto");
+  const [graitecSelection, setGraitecSelection] =
+    useState<GraitecTreeNodeId>("wall");
+  const [builtModules, setBuiltModules] = useState<
+    Record<GraitecModuleId, boolean>
+  >(EMPTY_GRAITEC_MODULES);
+  const [perforationActive, setPerforationActive] = useState(false);
+
+  const graitecAnimRef = useRef<{
+    mode: "auto" | "manual";
+    activeSelection: GraitecTreeNodeId;
+    builtModules: Record<GraitecModuleId, boolean>;
+    moduleStartMs: Record<GraitecModuleId, number>;
+    perforationActive: boolean;
+    perfStartMs: number;
+    autoPhaseOffset: number;
+  }>({
+    mode: "auto",
+    activeSelection: "wall",
+    builtModules: { ...EMPTY_GRAITEC_MODULES },
+    moduleStartMs: {
+      footing: 0,
+      column: 0,
+      beam: 0,
+      slab: 0,
+      wall: 0,
+      masonry: 0,
+    },
+    perforationActive: false,
+    perfStartMs: 0,
+    autoPhaseOffset: 0,
+  });
+
   useEffect(() => {
     paletteRef.current = palette;
     drawOnceRef.current?.();
@@ -131,6 +193,15 @@ export default function EngineeringShowcaseTransition() {
   useEffect(() => {
     if (currentScene) {
       sceneIdRef.current = currentScene.id;
+      if (currentScene.id === "graitec-advance") {
+        // 2A: start fresh auto Build Full Frame demo when switching onto Graitec tab
+        graitecAnimRef.current.mode = "auto";
+        graitecAnimRef.current.autoPhaseOffset = phaseRef.current;
+        setGraitecMode("auto");
+        setGraitecSelection("footing");
+        setBuiltModules({ ...EMPTY_GRAITEC_MODULES });
+        setPerforationActive(false);
+      }
       drawOnceRef.current?.();
     }
   }, [currentScene]);
@@ -184,6 +255,72 @@ export default function EngineeringShowcaseTransition() {
         phaseRef.current += (0.025 + velocityBoost * 0.04) * dtFactor;
       }
 
+      let graitecState: GraitecCadRenderState | undefined;
+      if (sceneIdRef.current === "graitec-advance") {
+        const gRef = graitecAnimRef.current;
+        if (gRef.mode === "auto") {
+          const demoPhase = shouldReduceMotion
+            ? 0
+            : Math.max(0.01, phaseRef.current - gRef.autoPhaseOffset);
+          graitecState = computeAutoShowcaseState(demoPhase, velocityBoost);
+        } else {
+          const now = performance.now();
+          const instant = !isAnimating || shouldReduceMotion;
+          const moduleProgress = {
+            footing: gRef.builtModules.footing
+              ? instant
+                ? 1
+                : Math.min((now - gRef.moduleStartMs.footing) / 850, 1)
+              : 0,
+            column: gRef.builtModules.column
+              ? instant
+                ? 1
+                : Math.min((now - gRef.moduleStartMs.column) / 850, 1)
+              : 0,
+            beam: gRef.builtModules.beam
+              ? instant
+                ? 1
+                : Math.min((now - gRef.moduleStartMs.beam) / 850, 1)
+              : 0,
+            slab: gRef.builtModules.slab
+              ? instant
+                ? 1
+                : Math.min((now - gRef.moduleStartMs.slab) / 850, 1)
+              : 0,
+            wall: gRef.builtModules.wall
+              ? instant
+                ? 1
+                : Math.min((now - gRef.moduleStartMs.wall) / 850, 1)
+              : 0,
+            masonry: gRef.builtModules.masonry
+              ? instant
+                ? 1
+                : Math.min((now - gRef.moduleStartMs.masonry) / 850, 1)
+              : 0,
+          };
+          const perfProg = gRef.perforationActive
+            ? instant
+              ? 1
+              : Math.min((now - gRef.perfStartMs) / 1400, 1)
+            : 0;
+          const elapsedSinceSync = now - gRef.perfStartMs - 1000;
+          const notifyPulse =
+            gRef.perforationActive &&
+            elapsedSinceSync >= 0 &&
+            elapsedSinceSync < 700
+              ? 1 - elapsedSinceSync / 700
+              : 0;
+
+          graitecState = {
+            mode: "manual",
+            activeSelection: gRef.activeSelection,
+            moduleProgress,
+            perforationProgress: perfProg,
+            notifyPulse,
+          };
+        }
+      }
+
       renderProjectScene(sceneIdRef.current, {
         ctx,
         width,
@@ -192,6 +329,7 @@ export default function EngineeringShowcaseTransition() {
         scrollNorm: progressRef.current,
         velocityBoost,
         colors: paletteRef.current.engineeringShowcase,
+        graitecState,
       });
     };
 
@@ -250,9 +388,126 @@ export default function EngineeringShowcaseTransition() {
       document.removeEventListener("visibilitychange", startOrStop);
       if (animId) cancelAnimationFrame(animId);
     };
-  }, [isAnimating]);
+  }, [isAnimating, shouldReduceMotion]);
 
   if (!currentScene) return null;
+
+  const isGraitecScene = currentScene.id === "graitec-advance";
+
+  const handleToggleGraitecModule = (modId: GraitecModuleId) => {
+    const now = performance.now();
+    const prevRef = graitecAnimRef.current;
+    const baseBuilt =
+      prevRef.mode === "auto"
+        ? { ...EMPTY_GRAITEC_MODULES }
+        : { ...prevRef.builtModules };
+    const nextVal = !baseBuilt[modId];
+    baseBuilt[modId] = nextVal;
+
+    const nextStarts = { ...prevRef.moduleStartMs };
+    if (nextVal) {
+      nextStarts[modId] = now;
+    }
+
+    const nextPerf =
+      modId === "wall" && !nextVal ? false : prevRef.mode === "auto" ? false : prevRef.perforationActive;
+
+    graitecAnimRef.current = {
+      ...prevRef,
+      mode: "manual",
+      activeSelection: modId,
+      builtModules: baseBuilt,
+      moduleStartMs: nextStarts,
+      perforationActive: nextPerf,
+    };
+
+    setGraitecMode("manual");
+    setGraitecSelection(modId);
+    setBuiltModules(baseBuilt);
+    setPerforationActive(nextPerf);
+    drawOnceRef.current?.();
+  };
+
+  const handleTriggerPerforation = () => {
+    const now = performance.now();
+    const prevRef = graitecAnimRef.current;
+    const baseBuilt =
+      prevRef.mode === "auto"
+        ? { ...EMPTY_GRAITEC_MODULES }
+        : { ...prevRef.builtModules };
+
+    // Ensure a wall panel exists to perforate
+    if (!baseBuilt.wall && !baseBuilt.masonry) {
+      baseBuilt.wall = true;
+      prevRef.moduleStartMs.wall = now - 650;
+    }
+
+    graitecAnimRef.current = {
+      ...prevRef,
+      mode: "manual",
+      activeSelection: "perforation",
+      builtModules: baseBuilt,
+      moduleStartMs: { ...prevRef.moduleStartMs },
+      perforationActive: true,
+      perfStartMs: now,
+    };
+
+    setGraitecMode("manual");
+    setGraitecSelection("perforation");
+    setBuiltModules(baseBuilt);
+    setPerforationActive(true);
+    drawOnceRef.current?.();
+  };
+
+  const handleBuildFullFrame = () => {
+    graitecAnimRef.current.mode = "auto";
+    graitecAnimRef.current.autoPhaseOffset = phaseRef.current;
+    setIsAnimating(true);
+    setGraitecMode("auto");
+    setGraitecSelection("footing");
+    setBuiltModules({ ...EMPTY_GRAITEC_MODULES });
+    setPerforationActive(false);
+    drawOnceRef.current?.();
+  };
+
+  const handleResetGraitec = () => {
+    graitecAnimRef.current = {
+      mode: "manual",
+      activeSelection: "footing",
+      builtModules: { ...EMPTY_GRAITEC_MODULES },
+      moduleStartMs: {
+        footing: 0,
+        column: 0,
+        beam: 0,
+        slab: 0,
+        wall: 0,
+        masonry: 0,
+      },
+      perforationActive: false,
+      perfStartMs: 0,
+      autoPhaseOffset: phaseRef.current,
+    };
+
+    setGraitecMode("manual");
+    setGraitecSelection("footing");
+    setBuiltModules({ ...EMPTY_GRAITEC_MODULES });
+    setPerforationActive(false);
+    drawOnceRef.current?.();
+  };
+
+  const handleSelectTreeNode = (id: GraitecTreeNodeId) => {
+    if (id === "perforation") {
+      handleTriggerPerforation();
+    } else {
+      handleToggleGraitecModule(id);
+    }
+  };
+
+  const graitecStatusAnnouncement = isGraitecScene
+    ? graitecMode === "auto"
+      ? "Graitec 3D CAD: Automatic sequential assembly demo running across Footing, Column, Beam, Slab, Wall, Masonry, and 3D Wall Perforation."
+      : `Graitec 3D CAD: ${GRAITEC_NODE_SPECS[graitecSelection].label} active (${GRAITEC_NODE_SPECS[graitecSelection].specValue}).`
+    : "";
 
   const handleTabKeyDown = (e: React.KeyboardEvent, idx: number) => {
     let nextIdx: number | null = null;
@@ -407,13 +662,114 @@ export default function EngineeringShowcaseTransition() {
             </div>
           </div>
 
-          {/* 2D Canvas Stage */}
-          <div className="relative h-64 sm:h-[280px] w-full">
-            <canvas
-              ref={canvasRef}
-              aria-hidden="true"
-              className="w-full h-full block pointer-events-none"
-            />
+          {/* Scene 04 Interactive Structural Module Toolbar */}
+          {isGraitecScene && (
+            <div
+              role="toolbar"
+              aria-label="Build Graitec 3D CAD structural modules"
+              className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-2.5 border-b border-line-hairline bg-surface/75"
+            >
+              <div className="flex flex-wrap items-center gap-1.5">
+                {GRAITEC_MODULES.map((modId) => {
+                  const meta = GRAITEC_NODE_SPECS[modId];
+                  const isBuilt = builtModules[modId];
+                  const isFocused =
+                    graitecMode === "manual" && graitecSelection === modId;
+
+                  return (
+                    <button
+                      key={modId}
+                      type="button"
+                      aria-pressed={isBuilt}
+                      onClick={() => handleToggleGraitecModule(modId)}
+                      className={`min-h-[28px] px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors border cursor-pointer ${
+                        isFocused && isBuilt
+                          ? "bg-accent-cobalt border-accent-cobalt text-white font-semibold"
+                          : isBuilt
+                            ? "bg-status-emerald/15 border-status-emerald/40 text-status-emerald-ink font-semibold hover:bg-status-emerald/25"
+                            : "bg-surface-recessed border-line-subtle text-ink-secondary hover:text-ink-primary hover:border-line-strong"
+                      }`}
+                    >
+                      {meta.label}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  aria-pressed={perforationActive}
+                  onClick={handleTriggerPerforation}
+                  className={`inline-flex items-center gap-1 min-h-[28px] px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors border cursor-pointer ${
+                    perforationActive
+                      ? "bg-accent-amber border-accent-amber text-white font-semibold"
+                      : "bg-accent-amber/10 border-accent-amber/40 text-accent-amber-ink hover:bg-accent-amber/20 font-semibold"
+                  }`}
+                >
+                  <Scissors className="w-3 h-3" aria-hidden="true" />
+                  <span>Perforate Wall</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={graitecMode === "auto"}
+                  onClick={handleBuildFullFrame}
+                  className={`inline-flex items-center gap-1 min-h-[28px] px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors border cursor-pointer ${
+                    graitecMode === "auto"
+                      ? "bg-accent-cobalt/15 border-accent-cobalt/45 text-accent-cyan-ink font-semibold"
+                      : "bg-surface border-line-subtle text-ink-secondary hover:text-ink-primary hover:border-line-strong"
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3" aria-hidden="true" />
+                  <span>Build Full Frame</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetGraitec}
+                  className="inline-flex items-center gap-1 min-h-[28px] px-2.5 py-1 rounded-lg text-[11px] font-mono bg-surface border border-line-subtle text-ink-muted hover:text-ink-primary hover:border-line-strong transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" aria-hidden="true" />
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Stage: Split-View (3D Canvas + WPF MVVM Inspector) for Graitec, Full Canvas for Scenes 01-03 */}
+          <div
+            className={
+              isGraitecScene
+                ? "grid grid-cols-1 md:grid-cols-[1fr_336px] lg:grid-cols-[1fr_372px]"
+                : "w-full"
+            }
+          >
+            <div
+              className={`relative w-full ${
+                isGraitecScene ? "h-64 sm:h-[316px]" : "h-64 sm:h-[290px]"
+              }`}
+            >
+              <canvas
+                ref={canvasRef}
+                aria-hidden="true"
+                className="w-full h-full block pointer-events-none"
+              />
+            </div>
+
+            {isGraitecScene && (
+              <GraitecMvvmInspector
+                mode={graitecMode}
+                activeSelection={graitecSelection}
+                builtModules={builtModules}
+                perforationActive={perforationActive}
+                onSelectNode={handleSelectTreeNode}
+              />
+            )}
+          </div>
+
+          <div role="status" aria-live="polite" className="sr-only">
+            {graitecStatusAnnouncement}
           </div>
 
           {/* Bottom Technical Caption */}

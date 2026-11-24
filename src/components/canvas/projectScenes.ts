@@ -1,4 +1,10 @@
 import type { CanvasThemePalette } from "@/lib/theme";
+import {
+  computeAutoShowcaseState,
+  drawGraitecCadScene,
+  drawRoundRect,
+  type GraitecCadRenderState,
+} from "./graitecCadScene";
 
 export type ProjectSceneId =
   | "cariad"
@@ -99,28 +105,7 @@ export interface SceneDrawContext {
   scrollNorm: number;
   velocityBoost: number;
   colors: SceneColors;
-}
-
-function drawRoundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
-) {
-  const radius = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + w - radius, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-  ctx.lineTo(x + w, y + h - radius);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-  ctx.lineTo(x + radius, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
+  graitecState?: GraitecCadRenderState;
 }
 
 function drawBlueprintGrid(
@@ -1860,142 +1845,12 @@ function drawHarmanEcallScene({
   ctx.fillText("JENKINS SANITY: 100% PASS", rightX + rightW * 0.5, topY + panelH - 20);
 }
 
-/* ============================================================================
- * 4. GRAITEC ADVANCE DESIGN — Structural 3D CAD Wall Perforation, FEM & Columns
- * ============================================================================ */
-function drawGraitecCadScene({
-  ctx,
-  width,
-  height,
-  phase,
-  scrollNorm,
-  colors,
-}: SceneDrawContext) {
-  const compact = width < 640;
-  const cx = compact ? width * 0.45 : width * 0.38;
-  const cy = height * 0.56;
-
-  const w = compact ? 132 : 196;
-  const h = compact ? 86 : 114;
-  const dx = compact ? 36 : 54;
-  const dy = (compact ? -22 : -30) + Math.sin(phase * 0.4 + scrollNorm * 4) * 4;
-
-  const xL = cx - w / 2;
-  const xR = cx + w / 2;
-  const yT = cy - h / 2;
-  const yB = cy + h / 2;
-
-  // Slab Top Plane FEM Strip Grid
-  ctx.strokeStyle = colors.cadSlabGrid.replace("ALPHA", "0.4");
-  ctx.lineWidth = 1;
-  for (let r = 0; r <= 4; r++) {
-    const t = r / 4;
-    ctx.beginPath();
-    ctx.moveTo(xL + dx * t, yT + dy * t);
-    ctx.lineTo(xR + dx * t, yT + dy * t);
-    ctx.stroke();
-  }
-  for (let c = 0; c <= 5; c++) {
-    const t = c / 5;
-    ctx.beginPath();
-    ctx.moveTo(xL + w * t, yT);
-    ctx.lineTo(xL + w * t + dx, yT + dy);
-    ctx.stroke();
-  }
-
-  // Front Structural Shear Wall Elevation + Isometric Frame
-  ctx.fillStyle = colors.canopyFill;
-  ctx.fillRect(xL, yT, w, h);
-
-  ctx.strokeStyle = colors.cadBeamStroke.replace("ALPHA", "0.85");
-  ctx.lineWidth = 2;
-  ctx.strokeRect(xL, yT, w, h);
-  ctx.strokeRect(xL + dx, yT + dy, w, h);
-
-  const corners = [
-    [xL, yT],
-    [xR, yT],
-    [xL, yB],
-    [xR, yB],
-  ] as const;
-  ctx.beginPath();
-  for (const [px, py] of corners) {
-    ctx.moveTo(px, py);
-    ctx.lineTo(px + dx, py + dy);
-  }
-  ctx.stroke();
-
-  // Parametric 3D Wall Opening Perforation Cutout (Graitec Showcase Task!)
-  const holeW = compact ? 44 : 62;
-  const holeH = compact ? 36 : 48;
-  const holeX = cx - holeW / 2;
-  const holeY = cy - holeH / 2 + 4;
-
-  ctx.fillStyle = colors.nodeCardFill;
-  ctx.fillRect(holeX, holeY, holeW, holeH);
-  ctx.strokeStyle = colors.packetAmber;
-  ctx.lineWidth = 1.8;
-  ctx.strokeRect(holeX, holeY, holeW, holeH);
-
-  // Automatic 4-Edge Offset Dimension Lines around Perforation
-  ctx.save();
-  ctx.setLineDash([3, 3]);
-  ctx.strokeStyle = colors.trajectoryStroke;
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  // Left & Right offset dimensions
-  ctx.moveTo(xL, holeY + holeH / 2);
-  ctx.lineTo(holeX, holeY + holeH / 2);
-  ctx.moveTo(holeX + holeW, holeY + holeH / 2);
-  ctx.lineTo(xR, holeY + holeH / 2);
-  // Top & Bottom offset dimensions
-  ctx.moveTo(holeX + holeW / 2, yT);
-  ctx.lineTo(holeX + holeW / 2, holeY);
-  ctx.moveTo(holeX + holeW / 2, holeY + holeH);
-  ctx.lineTo(holeX + holeW / 2, yB);
-  ctx.stroke();
-  ctx.restore();
-
-  // Structural Corner Anchor Nodes
-  ctx.fillStyle = colors.cadNodeFill;
-  for (const [px, py] of corners) {
-    ctx.beginPath();
-    ctx.arc(px, py, 3.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Right Side Suite Matrix Callout (Column, Beam, Footing, Slab, Wall, Masonry)
-  if (!compact) {
-    drawPill(
-      ctx,
-      width * 0.79,
-      height * 0.34,
-      166,
-      36,
-      "ADVANCE DESIGN SUITE",
-      "COLUMN • BEAM • FOOTING",
-      colors,
-      colors.chassisAccent
-    );
-    drawPill(
-      ctx,
-      width * 0.79,
-      height * 0.64,
-      166,
-      36,
-      "REVIT ADD-IN ENGINE",
-      "SLAB • WALL • MASONRY",
-      colors,
-      colors.packetAmber
-    );
-  }
-}
-
 export function renderProjectScene(
   sceneId: ProjectSceneId,
   ctxData: SceneDrawContext
 ) {
-  const { ctx, width, height, colors } = ctxData;
+  const { ctx, width, height, phase, velocityBoost, colors, graitecState } =
+    ctxData;
   ctx.clearRect(0, 0, width, height);
   drawBlueprintGrid(ctx, width, height, colors);
 
@@ -2010,7 +1865,13 @@ export function renderProjectScene(
       drawHarmanEcallScene(ctxData);
       break;
     case "graitec-advance":
-      drawGraitecCadScene(ctxData);
+      drawGraitecCadScene(
+        ctx,
+        width,
+        height,
+        colors,
+        graitecState ?? computeAutoShowcaseState(phase, velocityBoost)
+      );
       break;
   }
 }

@@ -31,6 +31,10 @@ export interface CanvasThemePalette {
     cadBeamStroke: string;
     cadSlabGrid: string;
     cadNodeFill: string;
+    cadFaceTop: string;
+    cadFaceFront: string;
+    cadFaceSide: string;
+    cadRebarStroke: string;
     nodeCardFill: string;
     nodeCardStroke: string;
     nodeLabelText: string;
@@ -79,6 +83,10 @@ export const THEME_PALETTES: Record<ThemeMode, CanvasThemePalette> = {
       cadBeamStroke: "rgba(56, 189, 248, ALPHA)",
       cadSlabGrid: "rgba(148, 163, 184, ALPHA)",
       cadNodeFill: "#F59E0B",
+      cadFaceTop: "rgba(56, 189, 248, 0.24)",
+      cadFaceFront: "rgba(37, 99, 235, 0.30)",
+      cadFaceSide: "rgba(15, 23, 42, 0.76)",
+      cadRebarStroke: "#F59E0B",
       nodeCardFill: "rgba(17, 24, 39, 0.92)",
       nodeCardStroke: "rgba(148, 163, 184, 0.35)",
       nodeLabelText: "#F8FAFC",
@@ -125,6 +133,10 @@ export const THEME_PALETTES: Record<ThemeMode, CanvasThemePalette> = {
       cadBeamStroke: "rgba(37, 99, 235, ALPHA)",
       cadSlabGrid: "rgba(71, 85, 105, ALPHA)",
       cadNodeFill: "#DC2626",
+      cadFaceTop: "rgba(2, 132, 199, 0.16)",
+      cadFaceFront: "rgba(37, 99, 235, 0.18)",
+      cadFaceSide: "rgba(203, 213, 225, 0.82)",
+      cadRebarStroke: "#D97706",
       nodeCardFill: "rgba(255, 255, 255, 0.95)",
       nodeCardStroke: "#CBD5E1",
       nodeLabelText: "#0F172A",

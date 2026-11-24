@@ -153,6 +153,37 @@ test.describe("Portfolio Production Verification", () => {
     ).toBeVisible();
     await projectTablist.getByRole("tab", { name: "Graitec 3D CAD" }).click();
     await expect(showcaseSection.getByText("6 MODULES")).toBeVisible();
+
+    // Verify Graitec interactive toolbar & split-view WPF Pure MVVM TreeView controls
+    const graitecToolbar = showcaseSection.getByRole("toolbar", {
+      name: "Build Graitec 3D CAD structural modules",
+    });
+    await expect(graitecToolbar).toBeVisible();
+    await graitecToolbar.getByRole("button", { name: "Footing" }).click();
+    await expect(
+      graitecToolbar.getByRole("button", { name: "Footing" })
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(showcaseSection.getByText("FootingModuleVM")).toBeVisible();
+
+    await graitecToolbar.getByRole("button", { name: "Perforate Wall" }).click();
+    await expect(
+      graitecToolbar.getByRole("button", { name: "Perforate Wall" })
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      showcaseSection.getByText("WallOpeningBooleanVM")
+    ).toBeVisible();
+
+    await graitecToolbar.getByRole("button", { name: "Reset" }).click();
+    await expect(
+      graitecToolbar.getByRole("button", { name: "Perforate Wall" })
+    ).toHaveAttribute("aria-pressed", "false");
+    await graitecToolbar
+      .getByRole("button", { name: "Build Full Frame" })
+      .click();
+    await expect(
+      graitecToolbar.getByRole("button", { name: "Build Full Frame" })
+    ).toHaveAttribute("aria-pressed", "true");
+
     await projectTablist.getByRole("tab", { name: "CARIAD REM" }).click();
     await expect(showcaseSection.getByText("CANoe 100%")).toBeVisible();
 

@@ -27,6 +27,7 @@ export interface CanvasThemePalette {
     packetSecondary: string;
     packetSuccess: string;
     packetAmber: string;
+    packetCrimson: string;
     cadBeamStroke: string;
     cadSlabGrid: string;
     cadNodeFill: string;
@@ -74,6 +75,7 @@ export const THEME_PALETTES: Record<ThemeMode, CanvasThemePalette> = {
       packetSecondary: "#2563EB",
       packetSuccess: "#34D399",
       packetAmber: "#F59E0B",
+      packetCrimson: "#F43F5E",
       cadBeamStroke: "rgba(56, 189, 248, ALPHA)",
       cadSlabGrid: "rgba(148, 163, 184, ALPHA)",
       cadNodeFill: "#F59E0B",
@@ -119,6 +121,7 @@ export const THEME_PALETTES: Record<ThemeMode, CanvasThemePalette> = {
       packetSecondary: "#2563EB",
       packetSuccess: "#059669",
       packetAmber: "#D97706",
+      packetCrimson: "#DC2626",
       cadBeamStroke: "rgba(37, 99, 235, ALPHA)",
       cadSlabGrid: "rgba(71, 85, 105, ALPHA)",
       cadNodeFill: "#DC2626",

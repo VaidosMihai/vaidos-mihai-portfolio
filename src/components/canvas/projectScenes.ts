@@ -27,16 +27,16 @@ export const PROJECT_SCENES: ProjectSceneMeta[] = [
     id: "cariad",
     tabLabel: "CARIAD REM",
     badge: "01 // CARIAD (VOLKSWAGEN GROUP)",
-    title: "REM Download & Mobileye Swarm Telemetry",
+    title: "REM Quadkey Tile Streaming & HTTP 200/400 Monitoring",
     caption:
-      "Front dashcam vision scanning road landmarks -> ~10 KB/km Roadbook tiles -> Vector CANoe & Python/Pandas ETL validation.",
+      "Vehicle moving along Z16 Quadkey grid -> Dashcam requests tiles -> Server responds HTTP 200 (green) / HTTP 400 (red).",
     scrollBoostLabel: "SWARM",
     baseRate: 10,
     unit: "KB/km",
     staticHud: [
       { label: "PROTOCOL", value: "CANoe 100%", tone: "emerald" },
-      { label: "WORKLOAD", value: "-30% ETL", tone: "cyan" },
-      { label: "QUALITY", value: "4-EYES", tone: "default" },
+      { label: "QUADKEY", value: "ZOOM 16", tone: "cyan" },
+      { label: "GATE", value: "HTTP 200 / 400", tone: "default" },
     ],
   },
   {
@@ -186,147 +186,316 @@ function drawPill(
 }
 
 /* ============================================================================
- * 1. CARIAD REM — Road Lane, Dashcam Vision, Roadbook Tile Upload & Pandas ETL
+ * 1. CARIAD REM — Moving Vehicle, Quadkey Z16 Tile Grid, REQ->Server->HTTP 200/400
  * ============================================================================ */
+const CARIAD_TILES = [
+  { quadkey: "1203221030201122", shortKey: "QK..1122", xyz: "[37516,23715]", fail: false },
+  { quadkey: "1203221030201123", shortKey: "QK..1123", xyz: "[37517,23715]", fail: false },
+  { quadkey: "1203221030201132", shortKey: "QK..1132", xyz: "[37518,23715]", fail: false },
+  { quadkey: "1203221030201133", shortKey: "QK..1133", xyz: "[37519,23715]", fail: true },
+  { quadkey: "1203221030201300", shortKey: "QK..1300", xyz: "[37516,23716]", fail: false },
+] as const;
+
 function drawCariadRemScene({
   ctx,
   width,
   height,
   phase,
-  scrollNorm,
   velocityBoost,
   colors,
 }: SceneDrawContext) {
-  const compact = width < 640;
-  const roadCy = height * 0.54;
-  const roadHalfH = compact ? 38 : 48;
+  const compact = width < 680;
+  const tileCount = compact ? 4 : CARIAD_TILES.length;
+  const gridLeft = compact ? 16 : 36;
+  const gridRight = width - (compact ? 16 : 36);
+  const gridWidth = gridRight - gridLeft;
+  const tileW = gridWidth / tileCount;
+  const tileH = compact ? 74 : 84;
+  const roadTop = height - tileH - (compact ? 22 : 24);
+  const roadCy = roadTop + tileH * 0.56;
 
-  // Highway Corridor Edges
-  ctx.strokeStyle = colors.chassisStroke;
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(20, roadCy - roadHalfH);
-  ctx.lineTo(width - 20, roadCy - roadHalfH);
-  ctx.moveTo(20, roadCy + roadHalfH);
-  ctx.lineTo(width - 20, roadCy + roadHalfH);
-  ctx.stroke();
+  // Cycle progress 0..1 like a smooth looping GIF; static snapshot at 0.68 when phase === 0
+  const loopSpeed = 0.055 + velocityBoost * 0.04;
+  const cycle = phase === 0 ? 0.68 : (phase * loopSpeed) % 1;
+  // Active cursor progresses across tiles 0..tileCount (extra tail pause to inspect final states)
+  const activeTileFloat = cycle * (tileCount + 0.6);
+  const loadingIdx = Math.min(Math.floor(activeTileFloat), tileCount - 1);
+  const tileLocalProg = Math.min(Math.max(activeTileFloat - Math.floor(activeTileFloat), 0), 1);
 
-  // Moving dashed highway centerline
+  // Server pill in upper-right area
+  const serverX = compact ? width * 0.72 : width * 0.76;
+  const serverY = compact ? 32 : 34;
+
+  // 1) Draw Road Surface & Quadkey Z16 Tile Grid along the street
+  for (let i = 0; i < tileCount; i++) {
+    const tileMeta = CARIAD_TILES[i];
+    if (!tileMeta) continue;
+    const tx = gridLeft + i * tileW;
+    const ty = roadTop;
+    const pad = 2;
+    const bx = tx + pad;
+    const by = ty + pad;
+    const bw = tileW - pad * 2;
+    const bh = tileH - pad * 2;
+
+    let tileState: "idle" | "loading" | "ok" | "fail" = "idle";
+    if (i < activeTileFloat - 0.85) {
+      tileState = tileMeta.fail ? "fail" : "ok";
+    } else if (i <= activeTileFloat && i === loadingIdx) {
+      // Response arrives at 82% of local cycle -> flips to 200 / 400
+      if (tileLocalProg >= 0.82) {
+        tileState = tileMeta.fail ? "fail" : "ok";
+      } else {
+        tileState = "loading";
+      }
+    }
+
+    // Tile background tint
+    if (tileState === "ok") {
+      ctx.fillStyle = "rgba(16, 185, 129, 0.12)";
+    } else if (tileState === "fail") {
+      ctx.fillStyle = "rgba(244, 63, 94, 0.14)";
+    } else if (tileState === "loading") {
+      ctx.fillStyle = "rgba(245, 158, 11, 0.12)";
+    } else {
+      ctx.fillStyle = colors.nodeCardFill;
+    }
+    drawRoundRect(ctx, bx, by, bw, bh, 6);
+    ctx.fill();
+
+    // Tile border (Yellow when loading, Green when HTTP 200, Red when HTTP 400)
+    ctx.save();
+    if (tileState === "idle") {
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = colors.busTrace;
+      ctx.lineWidth = 1.1;
+    } else if (tileState === "loading") {
+      ctx.strokeStyle = colors.packetAmber;
+      ctx.lineWidth = 2.2;
+    } else if (tileState === "ok") {
+      ctx.strokeStyle = colors.packetSuccess;
+      ctx.lineWidth = 2;
+    } else {
+      ctx.strokeStyle = colors.packetCrimson;
+      ctx.lineWidth = 2;
+    }
+    drawRoundRect(ctx, bx, by, bw, bh, 6);
+    ctx.stroke();
+    ctx.restore();
+
+    // Quadkey text + Zoom 16 metadata inside tile (auto-compact on narrower tiles to avoid text overlap)
+    const showFullQuadkey = bw >= 195;
+    ctx.textAlign = "left";
+    ctx.fillStyle = colors.nodeSubText;
+    ctx.font = showFullQuadkey ? "600 9px monospace" : "600 8.5px monospace";
+    ctx.fillText(
+      showFullQuadkey ? `QK ${tileMeta.quadkey}` : tileMeta.shortKey,
+      bx + 6,
+      by + 13
+    );
+
+    if (showFullQuadkey) {
+      ctx.fillStyle = colors.nodeSubText;
+      ctx.font = "500 8.5px monospace";
+      ctx.fillText(`Z16 ${tileMeta.xyz}`, bx + 6, by + 24);
+    }
+
+    // HTTP / Loading Status Badge at top-right of each tile
+    ctx.textAlign = "right";
+    ctx.font = "700 9px monospace";
+    if (tileState === "loading") {
+      ctx.fillStyle = colors.packetAmber;
+      ctx.fillText("LOADING", bx + bw - 6, by + 13);
+    } else if (tileState === "ok") {
+      ctx.fillStyle = colors.packetSuccess;
+      ctx.fillText("HTTP 200", bx + bw - 6, by + 13);
+    } else if (tileState === "fail") {
+      ctx.fillStyle = colors.packetCrimson;
+      ctx.fillText("HTTP 400", bx + bw - 6, by + 13);
+    } else {
+      ctx.fillStyle = colors.nodeSubText;
+      ctx.fillText("QUEUED", bx + bw - 6, by + 13);
+    }
+
+    // Bottom loading progress line inside tile
+    const barX = bx + 5;
+    const barY = by + bh - 6;
+    const barMaxW = bw - 10;
+    ctx.fillStyle = colors.busTrace;
+    ctx.fillRect(barX, barY, barMaxW, 2.5);
+
+    if (tileState === "loading") {
+      const fillRatio = Math.min(tileLocalProg / 0.82, 1);
+      ctx.fillStyle = colors.packetAmber;
+      ctx.fillRect(barX, barY, barMaxW * fillRatio, 2.5);
+    } else if (tileState === "ok") {
+      ctx.fillStyle = colors.packetSuccess;
+      ctx.fillRect(barX, barY, barMaxW, 2.5);
+    } else if (tileState === "fail") {
+      ctx.fillStyle = colors.packetCrimson;
+      ctx.fillRect(barX, barY, barMaxW, 2.5);
+    }
+  }
+
+  // Road dashed centerline across the tiles
   ctx.save();
-  ctx.setLineDash([14, 14]);
-  ctx.lineDashOffset = -phase * 28;
-  ctx.strokeStyle = colors.trajectoryStroke;
-  ctx.lineWidth = 1.6;
+  ctx.setLineDash([10, 10]);
+  ctx.strokeStyle = colors.busTrace;
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(20, roadCy);
-  ctx.lineTo(width - 20, roadCy);
+  ctx.moveTo(gridLeft + 4, roadCy);
+  ctx.lineTo(gridRight - 4, roadCy);
   ctx.stroke();
   ctx.restore();
 
-  // Vehicle traveling along lower lane
-  const carX = compact ? width * 0.22 : width * 0.22;
-  const carY = roadCy + (compact ? 18 : 22) + Math.sin(phase * 0.4 + scrollNorm * 4) * 2;
-  const carLen = compact ? 84 : 112;
-  const carWid = compact ? 34 : 42;
+  // 2) Moving Car along the Quadkey street
+  const carLen = compact ? 64 : 84;
+  const carWid = compact ? 28 : 34;
+  const minCarX = gridLeft + carLen * 0.6;
+  const maxCarX = gridRight - carLen * 0.7;
+  const carTravelNorm = Math.min(activeTileFloat / tileCount, 1);
+  const carX = minCarX + (maxCarX - minCarX) * carTravelNorm;
+  const carY = roadCy + 6;
+  const camX = carX + carLen * 0.34;
+  const camY = carY - carWid / 2 + 2;
 
-  // Front Mobileye Vision Cone
-  const coneLen = compact ? 105 : 175;
-  const coneGrad = ctx.createLinearGradient(carX + carLen / 2, carY, carX + carLen / 2 + coneLen, carY);
+  // Front Dashcam Vision Cone scanning upcoming tile
+  const coneLen = compact ? 58 : 88;
+  const coneGrad = ctx.createLinearGradient(
+    carX + carLen / 2,
+    carY,
+    carX + carLen / 2 + coneLen,
+    carY
+  );
   coneGrad.addColorStop(0, colors.visionConeStart);
   coneGrad.addColorStop(1, colors.visionConeEnd);
   ctx.fillStyle = coneGrad;
   ctx.beginPath();
   ctx.moveTo(carX + carLen / 2 - 4, carY);
-  ctx.lineTo(carX + carLen / 2 + coneLen, carY - (compact ? 28 : 40));
-  ctx.lineTo(carX + carLen / 2 + coneLen, carY + (compact ? 28 : 40));
+  ctx.lineTo(carX + carLen / 2 + coneLen, carY - (compact ? 18 : 24));
+  ctx.lineTo(carX + carLen / 2 + coneLen, carY + (compact ? 18 : 24));
   ctx.closePath();
   ctx.fill();
 
-  // Car silhouette
-  drawRoundRect(ctx, carX - carLen / 2, carY - carWid / 2, carLen, carWid, 10);
+  // Top-Down Vehicle Silhouette
+  drawRoundRect(ctx, carX - carLen / 2, carY - carWid / 2, carLen, carWid, 8);
   ctx.fillStyle = colors.chassisFill;
   ctx.fill();
   ctx.lineWidth = 1.8;
   ctx.strokeStyle = colors.chassisStroke;
   ctx.stroke();
 
-  drawRoundRect(ctx, carX - carLen * 0.2, carY - carWid / 2 + 6, carLen * 0.42, carWid - 12, 5);
+  // Windshield & Mounted Front Dashcam Dot
+  drawRoundRect(
+    ctx,
+    carX - carLen * 0.16,
+    carY - carWid / 2 + 5,
+    carLen * 0.4,
+    carWid - 10,
+    4
+  );
   ctx.fillStyle = colors.canopyFill;
   ctx.fill();
   ctx.strokeStyle = colors.chassisAccent;
-  ctx.lineWidth = 1.1;
+  ctx.lineWidth = 1;
   ctx.stroke();
 
-  // Detected road landmarks (scrolling toward car)
-  for (let i = 0; i < 3; i++) {
-    const markerProg = (1 - ((phase * 0.14 + i * 0.33) % 1));
-    const mx = carX + carLen * 0.6 + markerProg * (width * 0.32);
-    const my = roadCy - roadHalfH - 12;
+  // Dashcam lens node
+  ctx.fillStyle = colors.packetAmber;
+  ctx.beginPath();
+  ctx.arc(camX, camY + carWid * 0.36, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 3) Request (Dashcam -> Server) & Response (Server -> Car/Camera) Curves
+  const reqCtrlX = (camX + serverX) * 0.38;
+  const reqCtrlY = Math.min(serverY + 8, roadTop - 32);
+  const resCtrlX = (camX + serverX) * 0.62;
+  const resCtrlY = roadTop - 14;
+
+  // Request curve (Car Dashcam -> Server)
+  ctx.save();
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = colors.packetAmber;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(camX, camY);
+  ctx.quadraticCurveTo(reqCtrlX, reqCtrlY, serverX - 42, serverY + 12);
+  ctx.stroke();
+
+  // Response curve (Server -> Car Dashcam)
+  const currentTile = CARIAD_TILES[loadingIdx];
+  const respIsFail = Boolean(currentTile?.fail);
+  ctx.strokeStyle = respIsFail ? colors.packetCrimson : colors.packetSuccess;
+  ctx.beginPath();
+  ctx.moveTo(serverX - 28, serverY + 18);
+  ctx.quadraticCurveTo(resCtrlX, resCtrlY, camX + 6, camY);
+  ctx.stroke();
+  ctx.restore();
+
+  // Animated Request Packet (0 .. 0.42 -> Dashcam to Server)
+  const evalQuad = (
+    t: number,
+    p0: number,
+    p1: number,
+    p2: number
+  ): number => (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
+
+  if (tileLocalProg < 0.44) {
+    const rt = tileLocalProg / 0.44;
+    const rx = evalQuad(rt, camX, reqCtrlX, serverX - 42);
+    const ry = evalQuad(rt, camY, reqCtrlY, serverY + 12);
     ctx.fillStyle = colors.packetAmber;
     ctx.beginPath();
-    ctx.arc(mx, my, 4, 0, Math.PI * 2);
+    ctx.arc(rx, ry, 4.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = colors.packetAmber;
-    ctx.lineWidth = 1;
+
+    ctx.font = "700 9px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      `REQ ${currentTile?.shortKey ?? ""}`,
+      rx,
+      ry - 9
+    );
+  } else if (tileLocalProg <= 0.86) {
+    // Animated Response Packet (0.44 .. 0.86 -> Server back to Car/Camera)
+    const st = Math.min((tileLocalProg - 0.44) / 0.4, 1);
+    const sx = evalQuad(st, serverX - 28, resCtrlX, camX + 6);
+    const sy = evalQuad(st, serverY + 18, resCtrlY, camY);
+    const respColor = respIsFail ? colors.packetCrimson : colors.packetSuccess;
+    ctx.fillStyle = respColor;
     ctx.beginPath();
-    ctx.moveTo(mx, my + 4);
-    ctx.lineTo(mx, roadCy - roadHalfH);
-    ctx.stroke();
-  }
-
-  // Telemetry Tile Stream Path -> CANoe -> Pandas ETL -> Cloud Tile Verified
-  const etlX = compact ? width * 0.72 : width * 0.62;
-  const etlY = height * 0.28;
-  const cloudX = compact ? width * 0.85 : width * 0.86;
-
-  ctx.strokeStyle = colors.busTrace;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(carX, carY - carWid / 2);
-  ctx.quadraticCurveTo(carX + 35, etlY, etlX - 58, etlY);
-  if (!compact) {
-    ctx.moveTo(etlX + 58, etlY);
-    ctx.lineTo(cloudX - 54, etlY);
-  }
-  ctx.stroke();
-
-  // Moving 10KB/km Tile Packets along path
-  for (let p = 0; p < 3; p++) {
-    const t = ((phase * (0.24 + velocityBoost * 0.18) + p * 0.33) % 1);
-    const px = (1 - t) * carX + t * (compact ? etlX : cloudX);
-    const py =
-      (1 - t) * (1 - t) * (carY - carWid / 2) +
-      2 * (1 - t) * t * etlY +
-      t * t * etlY;
-    ctx.fillStyle = p % 2 === 0 ? colors.packetPrimary : colors.packetSuccess;
-    drawRoundRect(ctx, px - 6, py - 4, 12, 8, 2);
+    ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.font = "700 9px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(respIsFail ? "HTTP 400" : "HTTP 200", sx, sy - 9);
   }
 
+  // Server & Pandas ETL Pill at top
   drawPill(
     ctx,
-    etlX,
-    etlY,
-    compact ? 104 : 116,
+    serverX,
+    serverY,
+    compact ? 146 : 186,
     36,
-    "PANDAS ETL",
-    "CANoe 0x1B4 OK",
+    "REM TILE SERVER",
+    "Z16 QUADKEY • PANDAS ETL",
     colors,
     colors.chassisAccent
   );
 
+  // Subtle legend on top-left when space allows
   if (!compact) {
-    drawPill(
-      ctx,
-      cloudX,
-      etlY,
-      108,
-      36,
-      "ROADBOOK",
-      "~10 KB/km PASS",
-      colors,
-      colors.trajectoryStroke
-    );
+    ctx.textAlign = "left";
+    ctx.font = "600 9.5px monospace";
+    ctx.fillStyle = colors.packetAmber;
+    ctx.fillText("■ LOADING", gridLeft, serverY - 6);
+    ctx.fillStyle = colors.packetSuccess;
+    ctx.fillText("■ HTTP 200 OK", gridLeft + 84, serverY - 6);
+    ctx.fillStyle = colors.packetCrimson;
+    ctx.fillText("■ HTTP 400 FAILED", gridLeft + 184, serverY - 6);
   }
 }
 

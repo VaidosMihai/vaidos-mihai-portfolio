@@ -10,8 +10,44 @@ let activeHeadingEl: HTMLElement | null = null;
 let fadeTimer: ReturnType<typeof setTimeout> | null = null;
 let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function getNormalizedTerms(rawTerms: string[]): string[] {
+  return Array.from(
+    new Set(
+      rawTerms
+        .map((t) => t.trim().toLowerCase())
+        .filter((t) => t.length >= 2)
+    )
+  ).sort((a, b) => b.length - a.length);
+}
+
+function findMatchRanges(
+  text: string,
+  terms: string[]
+): { start: number; end: number }[] {
+  if (terms.length === 0) return [];
+  const lower = text.toLowerCase();
+  const candidates: { start: number; end: number }[] = [];
+
+  for (const term of terms) {
+    let from = 0;
+    while (from < lower.length) {
+      const idx = lower.indexOf(term, from);
+      if (idx === -1) break;
+      candidates.push({ start: idx, end: idx + term.length });
+      from = idx + term.length;
+    }
+  }
+
+  candidates.sort((a, b) => a.start - b.start || b.end - a.end);
+
+  const merged: { start: number; end: number }[] = [];
+  for (const range of candidates) {
+    const prev = merged[merged.length - 1];
+    if (!prev || range.start >= prev.end) {
+      merged.push(range);
+    }
+  }
+  return merged;
 }
 
 export function clearSearchHighlights(): void {
@@ -37,19 +73,6 @@ export function clearSearchHighlights(): void {
     delete activeHeadingEl.dataset.fading;
     activeHeadingEl = null;
   }
-}
-
-function buildSearchRegex(terms: string[]): RegExp | null {
-  const unique = Array.from(
-    new Set(
-      terms
-        .map((t) => t.trim())
-        .filter((t) => t.length >= 2)
-    )
-  ).sort((a, b) => b.length - a.length);
-
-  if (unique.length === 0) return null;
-  return new RegExp(`(${unique.map(escapeRegExp).join("|")})`, "gi");
 }
 
 function isSkippableNode(node: Text): boolean {
@@ -82,16 +105,11 @@ export function applySectionSearchHighlight(
   if (!sectionEl) return null;
 
   const trimmedQuery = rawQuery.trim();
-  const queryTokens = trimmedQuery.split(/\s+/).filter((t) => t.length >= 2);
-  const terms: string[] = [];
-  if (trimmedQuery.length >= 2) terms.push(trimmedQuery);
-  terms.push(...queryTokens);
-
-  // Add fallback title prefix if raw query wasn't literal inside section DOM
-  const regex = buildSearchRegex(terms);
+  const queryTokens = trimmedQuery.split(/\s+/);
+  const terms = getNormalizedTerms([trimmedQuery, ...queryTokens]);
 
   const collectedNodes: Text[] = [];
-  if (regex) {
+  if (terms.length > 0) {
     const walker = document.createTreeWalker(
       sectionEl,
       NodeFilter.SHOW_TEXT,
@@ -101,8 +119,7 @@ export function applySectionSearchHighlight(
           if (!textNode.nodeValue || isSkippableNode(textNode)) {
             return NodeFilter.FILTER_REJECT;
           }
-          regex.lastIndex = 0;
-          return regex.test(textNode.nodeValue)
+          return findMatchRanges(textNode.nodeValue, terms).length > 0
             ? NodeFilter.FILTER_ACCEPT
             : NodeFilter.FILTER_SKIP;
         },
@@ -118,32 +135,36 @@ export function applySectionSearchHighlight(
 
   let firstMark: HTMLElement | null = null;
 
-  if (regex && collectedNodes.length > 0) {
+  if (terms.length > 0 && collectedNodes.length > 0) {
     for (const textNode of collectedNodes) {
       const value = textNode.nodeValue;
       const parent = textNode.parentNode;
       if (!value || !parent) continue;
 
-      regex.lastIndex = 0;
-      const parts = value.split(regex);
-      if (parts.length <= 1) continue;
+      const ranges = findMatchRanges(value, terms);
+      if (ranges.length === 0) continue;
 
       const wrapper = document.createElement("span");
       wrapper.dataset.searchWrapper = "true";
+      let cursor = 0;
 
-      for (const part of parts) {
-        if (!part) continue;
-        regex.lastIndex = 0;
-        if (regex.test(part)) {
-          const mark = document.createElement("mark");
-          mark.className = "search-hit-mark";
-          mark.dataset.searchHighlight = "true";
-          mark.textContent = part;
-          wrapper.appendChild(mark);
-          if (!firstMark) firstMark = mark;
-        } else {
-          wrapper.appendChild(document.createTextNode(part));
+      for (const range of ranges) {
+        if (range.start > cursor) {
+          wrapper.appendChild(
+            document.createTextNode(value.slice(cursor, range.start))
+          );
         }
+        const mark = document.createElement("mark");
+        mark.className = "search-hit-mark";
+        mark.dataset.searchHighlight = "true";
+        mark.textContent = value.slice(range.start, range.end);
+        wrapper.appendChild(mark);
+        if (!firstMark) firstMark = mark;
+        cursor = range.end;
+      }
+
+      if (cursor < value.length) {
+        wrapper.appendChild(document.createTextNode(value.slice(cursor)));
       }
 
       parent.replaceChild(wrapper, textNode);

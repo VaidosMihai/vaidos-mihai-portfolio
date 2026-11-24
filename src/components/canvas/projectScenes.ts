@@ -59,9 +59,9 @@ export const PROJECT_SCENES: ProjectSceneMeta[] = [
     id: "harman-mazda",
     tabLabel: "HARMAN eCall",
     badge: "03 // HARMAN / MAZDA",
-    title: "Telematics HIL Bench & 2G/3G eCall",
+    title: "Python Pytest Automation & Mazda HIL Car Bench",
     caption:
-      "Arduino UART trigger bridge -> RF antenna attenuation & emergency SOS latch -> Jenkins Pytest & DLT trace capture.",
+      "Python OOP Pytest suite (eCall SOS, CAN Wakeup, RF Fault, ALSA Audio, DLT Watchdog) driving Arduino HIL & Mazda ECU simulation.",
     scrollBoostLabel: "BAUD",
     baseRate: 115,
     unit: "kbps",
@@ -1268,8 +1268,51 @@ function drawBmwParkingScene({
 }
 
 /* ============================================================================
- * 3. HARMAN / MAZDA — Arduino UART HIL Bench -> RF Modem eCall -> Pytest/DLT
+ * 3. HARMAN / MAZDA — Python Pytest Suite -> Mazda HIL Car Computer Bench -> DLT
  * ============================================================================ */
+const HARMAN_PYTEST_CASES = [
+  {
+    name: "test_ecall_sos_latch.py",
+    type: "E2E / SOS",
+    code: "assert ecu.sos_latch() == '2G_ACTIVE'",
+    dltLine: "[ECALL] 2G fallback + SOS latched",
+    relay: "REL2: SOS TRIG",
+    ecuState: "SOS: ACTIVE",
+  },
+  {
+    name: "test_can_kl15_wakeup.py",
+    type: "POWER / CAN",
+    code: "assert can.wait_msg(0x3A2) < 120ms",
+    dltLine: "[CAN] KL15 ON 12.8V -> TCU awake",
+    relay: "REL3: IGN KL15",
+    ecuState: "PWR: 12.8V",
+  },
+  {
+    name: "test_rf_antenna_fault.py",
+    type: "FAULT INJ",
+    code: "hil.drop_3g(); assert modem.reconn()",
+    dltLine: "[RF] 3G attenuated -> auto-recover",
+    relay: "REL1: RF ATTEN",
+    ecuState: "NET: 3G->2G",
+  },
+  {
+    name: "test_audio_alsa_route.py",
+    type: "AUDIO / ADB",
+    code: "assert alsa.underruns() == 0",
+    dltLine: "[AUDM] Mic loopback lat=3.2ms OK",
+    relay: "ADB: /dev/snd",
+    ecuState: "MIC: LINKED",
+  },
+  {
+    name: "test_dlt_watchdog_mem.py",
+    type: "STRESS / DLT",
+    code: "assert dlt.kernel_panics() == 0",
+    dltLine: "[DLT] CPU 14% RAM 3.4GB PASS",
+    relay: "UART: 115200",
+    ecuState: "SYS: HEALTHY",
+  },
+] as const;
+
 function drawHarmanEcallScene({
   ctx,
   width,
@@ -1278,104 +1321,543 @@ function drawHarmanEcallScene({
   velocityBoost,
   colors,
 }: SceneDrawContext) {
-  const compact = width < 640;
-  const cy = height * 0.52;
-  const leftX = compact ? width * 0.2 : width * 0.18;
-  const midX = compact ? width * 0.52 : width * 0.5;
-  const rightX = compact ? width * 0.82 : width * 0.82;
+  const compact = width < 720;
+  const loopSpeed = 0.055 + velocityBoost * 0.03;
+  const cycle = phase === 0 ? 0.44 : (phase * loopSpeed) % 1;
+  const caseFloat = cycle * HARMAN_PYTEST_CASES.length;
+  const activeIdx = Math.min(
+    Math.floor(caseFloat),
+    HARMAN_PYTEST_CASES.length - 1
+  );
+  const caseLocal = caseFloat - Math.floor(caseFloat);
+  const activeCase =
+    HARMAN_PYTEST_CASES[activeIdx] ?? HARMAN_PYTEST_CASES[0];
 
-  // Bus traces between Arduino HIL -> Modem RF -> Jenkins / DLT
-  ctx.strokeStyle = colors.busTrace;
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.moveTo(leftX + (compact ? 45 : 64), cy);
-  ctx.lineTo(midX - (compact ? 45 : 64), cy);
-  ctx.moveTo(midX + (compact ? 45 : 64), cy);
-  ctx.lineTo(rightX - (compact ? 45 : 64), cy);
-  ctx.stroke();
+  const padX = compact ? 14 : 26;
+  const topY = compact ? 16 : 18;
+  const panelH = height - (compact ? 32 : 36);
 
-  // Animated UART Square-Wave Pulse along Left->Mid Trace
-  const waveStart = leftX + (compact ? 48 : 68);
-  const waveEnd = midX - (compact ? 48 : 68);
-  if (waveEnd > waveStart + 12) {
-    ctx.strokeStyle = colors.packetPrimary;
+  if (compact) {
+    // Compact responsive 3-stage HIL + Pytest summary layout
+    const cy = height * 0.52;
+    const leftX = width * 0.19;
+    const midX = width * 0.51;
+    const rightX = width * 0.83;
+
+    ctx.strokeStyle = colors.busTrace;
     ctx.lineWidth = 1.6;
     ctx.beginPath();
-    const steps = 16;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const wx = waveStart + t * (waveEnd - waveStart);
-      const high = Math.sin(t * 14 - phase * (2 + velocityBoost)) > 0 ? -7 : 7;
-      if (i === 0) ctx.moveTo(wx, cy - 16 + high);
-      else ctx.lineTo(wx, cy - 16 + high);
-    }
+    ctx.moveTo(leftX + 46, cy);
+    ctx.lineTo(midX - 48, cy);
+    ctx.moveTo(midX + 48, cy);
+    ctx.lineTo(rightX - 46, cy);
     ctx.stroke();
+
+    for (let r = 0; r < 3; r++) {
+      const pulse = (phase * 0.55 + r * 0.33) % 1;
+      const rad = 14 + pulse * 30;
+      const alpha = (1 - pulse) * 0.6;
+      ctx.strokeStyle = colors.sonarArc.replace("ALPHA", alpha.toFixed(3));
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(midX, cy - 16, rad, -Math.PI * 0.85, -Math.PI * 0.15);
+      ctx.stroke();
+    }
+
+    drawPill(
+      ctx,
+      leftX,
+      cy,
+      106,
+      54,
+      "PYTEST SUITE",
+      activeCase.type,
+      colors,
+      colors.packetPrimary
+    );
+    drawPill(
+      ctx,
+      midX,
+      cy,
+      114,
+      54,
+      "MAZDA HIL ECU",
+      activeCase.ecuState,
+      colors,
+      colors.packetAmber
+    );
+    drawPill(
+      ctx,
+      rightX,
+      cy,
+      104,
+      54,
+      "DLT / JENKINS",
+      "5/5 SANITY OK",
+      colors,
+      colors.trajectoryStroke
+    );
+
+    ctx.textAlign = "center";
+    ctx.font = "700 8.5px monospace";
+    ctx.fillStyle = colors.packetPrimary;
+    ctx.fillText(
+      `▶ ${activeCase.name} (${activeCase.relay})`,
+      width * 0.5,
+      height - 14
+    );
+    return;
   }
 
-  // Animated SOS eCall RF Concentric Rings above Center Telematics Modem
-  for (let r = 0; r < 3; r++) {
-    const pulse = (phase * 0.55 + r * 0.33) % 1;
-    const rad = 16 + pulse * 36;
-    const alpha = (1 - pulse) * 0.65;
-    ctx.strokeStyle = colors.sonarArc.replace("ALPHA", alpha.toFixed(3));
+  // Desktop Detailed 3-Zone Architecture:
+  // [1] Python Pytest Runner (Left) <-> [2] Mazda HIL Car Computer Bench (Center) <-> [3] DLT & CI Monitor (Right)
+  const leftW = Math.min(254, width * 0.27);
+  const rightW = Math.min(238, width * 0.25);
+  const leftX = padX;
+  const rightX = width - padX - rightW;
+  const midGapLeft = leftX + leftW;
+  const midGapRight = rightX;
+  const benchW = Math.min(340, midGapRight - midGapLeft - 88);
+  const benchX = (midGapLeft + midGapRight - benchW) * 0.5;
+
+  // =========================================================================
+  // 1) Animated Test Stimulus (Pytest -> Bench) & Telemetry Return (Bench -> DLT)
+  // =========================================================================
+  const busTopY = topY + panelH * 0.34;
+  const busBotY = topY + panelH * 0.68;
+
+  ctx.strokeStyle = colors.busTrace;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  // Pytest -> HIL Stimulus & UART Trigger
+  ctx.moveTo(leftX + leftW, busTopY);
+  ctx.lineTo(benchX, busTopY);
+  // HIL -> Pytest Assert Return
+  ctx.moveTo(benchX, busBotY);
+  ctx.lineTo(leftX + leftW, busBotY);
+  // HIL -> DLT Monitor Traces
+  ctx.moveTo(benchX + benchW, busTopY);
+  ctx.lineTo(rightX, busTopY);
+  ctx.moveTo(benchX + benchW, busBotY);
+  ctx.lineTo(rightX, busBotY);
+  ctx.stroke();
+
+  // Animated UART Square-Wave Signal on Pytest -> HIL wire
+  const sqStart = leftX + leftW + 4;
+  const sqEnd = benchX - 4;
+  if (sqEnd > sqStart + 10) {
+    ctx.strokeStyle = colors.packetPrimary;
     ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.arc(midX, cy - 12, rad, -Math.PI * 0.85, -Math.PI * 0.15);
+    const steps = 14;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const sx = sqStart + t * (sqEnd - sqStart);
+      const yOff =
+        Math.sin(t * 16 - phase * (2.2 + velocityBoost)) > 0 ? -4.5 : 4.5;
+      if (s === 0) ctx.moveTo(sx, busTopY - 24 + yOff);
+      else ctx.lineTo(sx, busTopY - 24 + yOff);
+    }
     ctx.stroke();
   }
 
-  // Animated DLT Packets along Mid->Right Trace
-  const dltStart = midX + (compact ? 48 : 68);
-  const dltEnd = rightX - (compact ? 48 : 68);
-  if (dltEnd > dltStart + 10) {
-    for (let p = 0; p < 2; p++) {
-      const t = (phase * (0.28 + velocityBoost * 0.2) + p * 0.5) % 1;
-      const px = dltStart + t * (dltEnd - dltStart);
-      ctx.fillStyle = p === 0 ? colors.packetAmber : colors.packetSuccess;
-      ctx.beginPath();
-      ctx.arc(px, cy, 4, 0, Math.PI * 2);
-      ctx.fill();
+  // Animated Packets across all buses
+  const drawPacketDot = (
+    x0: number,
+    x1: number,
+    y: number,
+    tNorm: number,
+    color: string,
+    label: string
+  ) => {
+    const px = x0 + (x1 - x0) * tNorm;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px, y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "700 7.5px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(label, (x0 + x1) * 0.5, y - 8);
+  };
+
+  if (caseLocal < 0.48) {
+    drawPacketDot(
+      leftX + leftW,
+      benchX,
+      busTopY,
+      caseLocal / 0.48,
+      colors.packetAmber,
+      "CMD"
+    );
+  } else {
+    drawPacketDot(
+      benchX,
+      leftX + leftW,
+      busBotY,
+      Math.min((caseLocal - 0.48) / 0.46, 1),
+      colors.packetSuccess,
+      "ASSERT"
+    );
+  }
+  drawPacketDot(
+    benchX + benchW,
+    rightX,
+    busTopY,
+    (phase * 0.45) % 1,
+    colors.packetPrimary,
+    "DLT"
+  );
+  drawPacketDot(
+    benchX + benchW,
+    rightX,
+    busBotY,
+    (phase * 0.45 + 0.5) % 1,
+    colors.packetSuccess,
+    "ADB"
+  );
+
+  // =========================================================================
+  // 2) LEFT PANEL — Python OOP Pytest Test Suite Runner
+  // =========================================================================
+  drawRoundRect(ctx, leftX, topY, leftW, panelH, 10);
+  ctx.fillStyle = colors.nodeCardFill;
+  ctx.fill();
+  ctx.strokeStyle = colors.packetPrimary;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Header bar inside Pytest Runner
+  ctx.fillStyle = "rgba(56, 189, 248, 0.10)";
+  ctx.fillRect(leftX + 1, topY + 1, leftW - 2, 26);
+  ctx.textAlign = "left";
+  ctx.fillStyle = colors.packetPrimary;
+  ctx.font = "700 9.5px monospace";
+  ctx.fillText("PYTHON PYTEST SUITE (OOP)", leftX + 10, topY + 17);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = colors.packetSuccess;
+  ctx.font = "700 8.5px monospace";
+  ctx.fillText(
+    `${activeIdx + 1}/${HARMAN_PYTEST_CASES.length} RUN`,
+    leftX + leftW - 10,
+    topY + 17
+  );
+
+  // List 5 distinct automated test types & execution status
+  const rowStartY = topY + 36;
+  const rowH = 31;
+  for (let i = 0; i < HARMAN_PYTEST_CASES.length; i++) {
+    const tc = HARMAN_PYTEST_CASES[i];
+    if (!tc) continue;
+    const ry = rowStartY + i * rowH;
+    const isRunning = i === activeIdx && caseLocal < 0.85;
+    const isPassed = i < activeIdx || (i === activeIdx && caseLocal >= 0.85);
+
+    drawRoundRect(ctx, leftX + 8, ry, leftW - 16, rowH - 5, 5);
+    ctx.fillStyle = isRunning
+      ? "rgba(245, 158, 11, 0.14)"
+      : isPassed
+        ? "rgba(16, 185, 129, 0.10)"
+        : "rgba(148, 163, 184, 0.06)";
+    ctx.fill();
+    ctx.strokeStyle = isRunning
+      ? colors.packetAmber
+      : isPassed
+        ? colors.packetSuccess
+        : colors.busTrace;
+    ctx.lineWidth = isRunning ? 1.4 : 0.9;
+    ctx.stroke();
+
+    // Test file name
+    ctx.textAlign = "left";
+    ctx.font = "700 8px monospace";
+    ctx.fillStyle = colors.nodeLabelText;
+    ctx.fillText(tc.name, leftX + 14, ry + 11);
+
+    // Test type category tag
+    ctx.font = "600 7.5px monospace";
+    ctx.fillStyle = colors.nodeSubText;
+    ctx.fillText(tc.type, leftX + 14, ry + 21);
+
+    // Status pill right side
+    ctx.textAlign = "right";
+    ctx.font = "700 8px monospace";
+    if (isPassed) {
+      ctx.fillStyle = colors.packetSuccess;
+      ctx.fillText("✓ PASS", leftX + leftW - 14, ry + 11);
+    } else if (isRunning) {
+      ctx.fillStyle = colors.packetAmber;
+      ctx.fillText("▶ EXEC", leftX + leftW - 14, ry + 11);
+    } else {
+      ctx.fillStyle = colors.nodeSubText;
+      ctx.fillText("QUEUE", leftX + leftW - 14, ry + 11);
+    }
+
+    // Mini progress underline on active running test
+    if (isRunning) {
+      const pW = leftW - 28;
+      ctx.fillStyle = colors.busTrace;
+      ctx.fillRect(leftX + 14, ry + rowH - 8, pW, 2);
+      ctx.fillStyle = colors.packetAmber;
+      ctx.fillRect(
+        leftX + 14,
+        ry + rowH - 8,
+        pW * Math.min(caseLocal / 0.85, 1),
+        2
+      );
     }
   }
 
-  // Node 1: Arduino / UART Hardware Fault Injection
-  drawPill(
-    ctx,
-    leftX,
-    cy,
-    compact ? 92 : 128,
-    46,
-    "ARDUINO HIL",
-    "UART 115200 8N1",
-    colors,
-    colors.packetAmber
+  // Active Pytest Assertion Line at bottom of left panel
+  ctx.textAlign = "left";
+  ctx.font = "600 7.5px monospace";
+  ctx.fillStyle = colors.packetPrimary;
+  ctx.fillText(`> ${activeCase.code}`, leftX + 10, topY + panelH - 12);
+
+  // =========================================================================
+  // 3) CENTER ZONE — Mazda HIL Car Computer Simulation Bench
+  // =========================================================================
+  drawRoundRect(ctx, benchX, topY, benchW, panelH, 12);
+  ctx.fillStyle = colors.nodeCardFill;
+  ctx.fill();
+  ctx.strokeStyle = colors.chassisStroke;
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+
+  // Aluminum rack corner brackets + Bench Header
+  const br = 8;
+  ctx.fillStyle = colors.chassisStroke;
+  ctx.fillRect(benchX + 5, topY + 5, br, 3);
+  ctx.fillRect(benchX + benchW - 5 - br, topY + 5, br, 3);
+  ctx.fillRect(benchX + 5, topY + panelH - 8, br, 3);
+  ctx.fillRect(benchX + benchW - 5 - br, topY + panelH - 8, br, 3);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = colors.nodeLabelText;
+  ctx.font = "700 9.5px monospace";
+  ctx.fillText(
+    "MAZDA HIL BENCH • CAR COMPUTER SIMULATION",
+    benchX + benchW * 0.5,
+    topY + 19
   );
 
-  // Node 2: Embedded Telematics Modem (2G/3G eCall)
-  drawPill(
-    ctx,
-    midX,
-    cy,
-    compact ? 92 : 132,
-    46,
-    "ECALL MODEM",
-    "2G/3G SOS LATCH",
-    colors,
-    colors.chassisAccent
+  // Power Supply Rail Strip (12.8V KL30 / KL15 + LEDs)
+  const railY = topY + 28;
+  drawRoundRect(ctx, benchX + 12, railY, benchW - 24, 20, 4);
+  ctx.fillStyle = "rgba(148, 163, 184, 0.10)";
+  ctx.fill();
+  ctx.strokeStyle = colors.busTrace;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.textAlign = "left";
+  ctx.font = "700 7.5px monospace";
+  ctx.fillStyle = colors.packetSuccess;
+  ctx.fillText("● KL30 12.8V", benchX + 18, railY + 13);
+  ctx.fillStyle = colors.packetAmber;
+  ctx.fillText("● KL15 IGN", benchX + 86, railY + 13);
+  ctx.textAlign = "right";
+  ctx.fillStyle = colors.packetPrimary;
+  ctx.fillText("CAN-FD 500k", benchX + benchW - 18, railY + 13);
+
+  // Bench Sub-Module A (Left inside Bench): Arduino Hardware Relay Shield
+  const ardW = benchW * 0.36;
+  const modTop = railY + 28;
+  const modH = panelH - 112;
+  const ardX = benchX + 12;
+
+  drawRoundRect(ctx, ardX, modTop, ardW, modH, 7);
+  ctx.fillStyle = "rgba(245, 158, 11, 0.08)";
+  ctx.fill();
+  ctx.strokeStyle = colors.packetAmber;
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = colors.packetAmber;
+  ctx.font = "700 8px monospace";
+  ctx.fillText("ARDUINO HIL", ardX + ardW * 0.5, modTop + 14);
+  ctx.fillStyle = colors.nodeSubText;
+  ctx.font = "600 7px monospace";
+  ctx.fillText("UART 115200 8N1", ardX + ardW * 0.5, modTop + 25);
+
+  // 3 Physical Relay GPIO Switches inside Arduino module
+  const relays = [
+    { label: "REL1: RF", match: "REL1" },
+    { label: "REL2: SOS", match: "REL2" },
+    { label: "REL3: IGN", match: "REL3" },
+  ];
+  relays.forEach((rel, rIdx) => {
+    const ry = modTop + 34 + rIdx * 24;
+    const activeRel = activeCase.relay.startsWith(rel.match);
+    drawRoundRect(ctx, ardX + 8, ry, ardW - 16, 18, 4);
+    ctx.fillStyle = activeRel
+      ? "rgba(245, 158, 11, 0.25)"
+      : "rgba(148, 163, 184, 0.08)";
+    ctx.fill();
+    ctx.strokeStyle = activeRel ? colors.packetAmber : colors.busTrace;
+    ctx.lineWidth = activeRel ? 1.3 : 0.8;
+    ctx.stroke();
+
+    ctx.textAlign = "left";
+    ctx.font = "700 7px monospace";
+    ctx.fillStyle = activeRel ? colors.packetAmber : colors.nodeSubText;
+    ctx.fillText(rel.label, ardX + 13, ry + 11.5);
+  });
+
+  // Bench Sub-Module B (Right inside Bench): Mazda Car Computer (TCU + Virtual Car State)
+  const ecuX = ardX + ardW + 14;
+  const ecuW = benchX + benchW - 12 - ecuX;
+
+  // Wiring harness between Arduino & Mazda Car Computer
+  ctx.strokeStyle = colors.packetAmber;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(ardX + ardW, modTop + modH * 0.35);
+  ctx.lineTo(ecuX, modTop + modH * 0.35);
+  ctx.moveTo(ardX + ardW, modTop + modH * 0.65);
+  ctx.lineTo(ecuX, modTop + modH * 0.65);
+  ctx.stroke();
+
+  drawRoundRect(ctx, ecuX, modTop, ecuW, modH, 7);
+  ctx.fillStyle = "rgba(56, 189, 248, 0.07)";
+  ctx.fill();
+  ctx.strokeStyle = colors.chassisAccent;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = colors.chassisAccent;
+  ctx.font = "700 8px monospace";
+  ctx.fillText("MAZDA TCU / BCM", ecuX + ecuW * 0.5, modTop + 14);
+
+  // RF Antenna Mast & Live 2G/3G Waves clearly below ECU Header
+  const rfFaultMode = activeIdx === 2 && caseLocal > 0.2 && caseLocal < 0.72;
+  const antX = ecuX + ecuW * 0.5;
+  const antBaseY = modTop + 54;
+  ctx.strokeStyle = rfFaultMode ? colors.packetCrimson : colors.packetPrimary;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(antX, antBaseY);
+  ctx.lineTo(antX, antBaseY - 10);
+  ctx.stroke();
+
+  for (let r = 0; r < 3; r++) {
+    const wave = (phase * 0.6 + r * 0.33) % 1;
+    const rad = 6 + wave * 15;
+    const alpha = rfFaultMode ? 0.18 : (1 - wave) * 0.75;
+    ctx.strokeStyle = rfFaultMode
+      ? colors.packetCrimson
+      : colors.sonarArc.replace("ALPHA", alpha.toFixed(3));
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(antX, antBaseY - 10, rad, -Math.PI * 0.85, -Math.PI * 0.15);
+    ctx.stroke();
+  }
+
+  // Simulated Car Body Telemetry Box inside Mazda ECU module
+  drawRoundRect(ctx, ecuX + 10, modTop + 62, ecuW - 20, 46, 5);
+  ctx.fillStyle = "rgba(15, 23, 42, 0.35)";
+  ctx.fill();
+  ctx.strokeStyle = rfFaultMode
+    ? colors.packetCrimson
+    : colors.packetSuccess;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.font = "700 8px monospace";
+  ctx.fillStyle = rfFaultMode ? colors.packetCrimson : colors.packetSuccess;
+  ctx.fillText(
+    rfFaultMode ? "RF SIGNAL DROPPED" : activeCase.ecuState,
+    ecuX + ecuW * 0.5,
+    modTop + 81
+  );
+  ctx.fillStyle = colors.nodeSubText;
+  ctx.font = "600 7px monospace";
+  ctx.fillText(
+    `ECU • ${activeCase.relay}`,
+    ecuX + ecuW * 0.5,
+    modTop + 96
   );
 
-  // Node 3: Jenkins + Pytest + DLT Tracer
-  drawPill(
-    ctx,
-    rightX,
-    cy,
-    compact ? 92 : 128,
-    46,
-    "PYTEST + DLT",
-    "SANITY PASSED",
-    colors,
-    colors.trajectoryStroke
+  // Bottom Bench Status Strip (Simulated Harnesses)
+  const botStripY = topY + panelH - 36;
+  drawRoundRect(ctx, benchX + 12, botStripY, benchW - 24, 22, 5);
+  ctx.fillStyle = "rgba(16, 185, 129, 0.09)";
+  ctx.fill();
+  ctx.strokeStyle = colors.packetSuccess;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = colors.packetSuccess;
+  ctx.font = "700 8px monospace";
+  ctx.fillText(
+    benchW >= 300
+      ? "HARNESS: CAN • UART • RF • AUDIO"
+      : "CAN • UART • RF • AUDIO",
+    benchX + benchW * 0.5,
+    botStripY + 14
   );
+
+  // =========================================================================
+  // 4) RIGHT PANEL — AUTOSAR DLT Trace Capture & Jenkins Sanity CI
+  // =========================================================================
+  drawRoundRect(ctx, rightX, topY, rightW, panelH, 10);
+  ctx.fillStyle = colors.nodeCardFill;
+  ctx.fill();
+  ctx.strokeStyle = colors.trajectoryStroke;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Header bar inside DLT/CI Monitor
+  ctx.fillStyle = "rgba(16, 185, 129, 0.10)";
+  ctx.fillRect(rightX + 1, topY + 1, rightW - 2, 26);
+  ctx.textAlign = "left";
+  ctx.fillStyle = colors.trajectoryStroke;
+  ctx.font = "700 9.5px monospace";
+  ctx.fillText("DLT TRACE & JENKINS CI", rightX + 10, topY + 17);
+
+  // Live streaming DLT lines mapped to test execution
+  for (let i = 0; i < HARMAN_PYTEST_CASES.length; i++) {
+    const tc = HARMAN_PYTEST_CASES[i];
+    if (!tc) continue;
+    const ly = topY + 42 + i * 31;
+    const unlocked = i <= activeIdx;
+
+    drawRoundRect(ctx, rightX + 8, ly - 6, rightW - 16, 25, 4);
+    ctx.fillStyle = unlocked
+      ? "rgba(16, 185, 129, 0.08)"
+      : "rgba(148, 163, 184, 0.04)";
+    ctx.fill();
+
+    ctx.textAlign = "left";
+    ctx.font = "600 7.5px monospace";
+    ctx.fillStyle = unlocked
+      ? i === activeIdx
+        ? colors.packetPrimary
+        : colors.packetSuccess
+      : colors.nodeSubText;
+    ctx.fillText(
+      unlocked ? tc.dltLine : "[WAIT] pending fixture...",
+      rightX + 12,
+      ly + 9
+    );
+  }
+
+  // Jenkins Weekly Sanity Result Badge at bottom of right panel
+  drawRoundRect(ctx, rightX + 10, topY + panelH - 36, rightW - 20, 24, 5);
+  ctx.fillStyle = "rgba(16, 185, 129, 0.16)";
+  ctx.fill();
+  ctx.strokeStyle = colors.packetSuccess;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = colors.packetSuccess;
+  ctx.font = "700 8.5px monospace";
+  ctx.fillText("JENKINS SANITY: 100% PASS", rightX + rightW * 0.5, topY + panelH - 20);
 }
 
 /* ============================================================================

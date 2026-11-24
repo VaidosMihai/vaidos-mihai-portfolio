@@ -117,10 +117,10 @@ export function buildSiteSearchIndex(): SiteSearchEntry[] {
     },
     {
       id: "showcase-harman",
-      title: "Simulation 03 — HARMAN / Mazda Telematics HIL Bench & eCall",
+      title: "Simulation 03 — Python Pytest Automation & Mazda HIL Car Bench",
       subtitle:
-        "Arduino UART 115200 8N1 trigger bridge, 2G/3G RF attenuation & Pytest / DLT traces",
-      extra: ["Jenkins CI Weekly Sanity SOS Latch"],
+        "5 Pytest OOP suites (eCall SOS, CAN KL15 Wakeup, RF Fault, ALSA Audio, DLT Watchdog) driving Arduino HIL & Mazda ECU",
+      extra: ["Jenkins CI Weekly Sanity SOS Latch UART 115200 8N1"],
     },
     {
       id: "showcase-graitec",

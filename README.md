@@ -27,30 +27,3 @@ Implemented via semantic CSS custom properties ([globals.css](src/app/globals.cs
 4. **Raycast Command Palette (`Cmd/Ctrl+K`):** Built with `cmdk` for instant theme switching, section navigation, technology filtering (`C# / .NET`, `WPF / MVVM`, `Autodesk Revit`, `Python & Pandas`, `Modern C++`, `CARIAD REM`, `Vector CANoe`, `Azure DevOps`), clipboard actions, and PDF resume printing.
 5. **FormSubmit Contact Relay & Hardened Security:** Direct interactive contact form inside the Contact section wired to [FormSubmit](https://formsubmit.co/) (`POST /ajax/*`) with honeypot spam trap, client validation, and CSP allowlisting (`connect-src 'self' https://formsubmit.co`, `form-action 'self' https://formsubmit.co`), alongside HTTP security headers in [next.config.ts](next.config.ts), strict HTTPS URL validation, `error.tsx`, `global-error.tsx`, `not-found.tsx`, `robots.ts`, `sitemap.ts`, and `next/font/google`.
 
----
-
-## Quick Start & Verification
-
-```bash
-# Development server
-npm run dev
-
-# Type checking, ESLint (with eslint-plugin-security), and production build
-npm run typecheck
-npm run lint
-npm run build
-
-# Start production server (serves HTTP security headers)
-npm run start
-
-# Playwright end-to-end suite
-npm run test:e2e
-```
-
-### Deploy to Vercel (via GitHub)
-1. Push this repository to GitHub (`main` branch).
-2. Import the repository in [Vercel](https://vercel.com) (Next.js preset auto-detected).
-3. Configure Environment Variables in Vercel Project Settings:
-   - `NEXT_PUBLIC_SITE_URL` -> your live Vercel URL (e.g. `https://vaidos-mihai-portfolio.vercel.app`)
-   - `NEXT_PUBLIC_FORMSUBMIT_ENDPOINT` -> `https://formsubmit.co/ajax/vaidos.mihaiiulian@gmail.com` (and optionally replace with FormSubmit's hashed endpoint string after activation + redeploy)
-4. Trigger one test submission on your live domain and click the FormSubmit activation link sent to `vaidos.mihaiiulian@gmail.com`.

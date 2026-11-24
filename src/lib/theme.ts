@@ -11,33 +11,29 @@ export interface CanvasThemePalette {
     particleColors: [string, string];
     canvasOpacityClass: string;
   };
-  muscleCar: {
-    flameStops: [string, string, string];
-    smokeStops: [string, string, string];
-    bodyGrad: [string, string, string, string];
+  engineeringShowcase: {
+    gridMinor: string;
+    gridMajor: string;
+    chassisFill: string;
     chassisStroke: string;
-    wingMountFill: string;
-    wingMountStroke: string;
-    wingBladeStroke: string;
-    endplateFill: string;
-    endplateStroke: string;
-    canopyGrad: [string, string];
-    canopyStroke: string;
-    doorCutStroke: string;
-    creaseStroke: string;
-    splitterFill: string;
-    splitterStroke: string;
-    exhaustCoreFill: string;
-    headlightFill: string;
-    taillightFill: string;
-    wheelRimFill: string;
-    wheelRimStroke: string;
-    spokePrimary: string;
-    spokeSecondary: string;
-    caliperFill: string;
-    caliperStroke: string;
-    groundGlowStops: [string, string, string];
-    dropShadow: string;
+    chassisAccent: string;
+    canopyFill: string;
+    sonarArc: string;
+    visionConeStart: string;
+    visionConeEnd: string;
+    trajectoryStroke: string;
+    busTrace: string;
+    packetPrimary: string;
+    packetSecondary: string;
+    packetSuccess: string;
+    packetAmber: string;
+    cadBeamStroke: string;
+    cadSlabGrid: string;
+    cadNodeFill: string;
+    nodeCardFill: string;
+    nodeCardStroke: string;
+    nodeLabelText: string;
+    nodeSubText: string;
   };
 }
 
@@ -62,45 +58,29 @@ export const THEME_PALETTES: Record<ThemeMode, CanvasThemePalette> = {
       ],
       canvasOpacityClass: "opacity-85",
     },
-    muscleCar: {
-      flameStops: [
-        "rgba(56, 189, 248, ALPHA)",
-        "rgba(37, 99, 235, ALPHA)",
-        "rgba(9, 13, 22, 0)",
-      ],
-      smokeStops: [
-        "rgba(148, 163, 184, ALPHA)",
-        "rgba(22, 32, 51, ALPHA)",
-        "rgba(9, 13, 22, 0)",
-      ],
-      bodyGrad: ["#090D16", "#111827", "#162033", "#2563EB"],
+    engineeringShowcase: {
+      gridMinor: "rgba(56, 189, 248, 0.04)",
+      gridMajor: "rgba(56, 189, 248, 0.11)",
+      chassisFill: "rgba(17, 24, 39, 0.92)",
       chassisStroke: "#94A3B8",
-      wingMountFill: "#111827",
-      wingMountStroke: "#94A3B8",
-      wingBladeStroke: "#38BDF8",
-      endplateFill: "#2563EB",
-      endplateStroke: "#38BDF8",
-      canopyGrad: ["#2563EB", "#38BDF8"],
-      canopyStroke: "#38BDF8",
-      doorCutStroke: "#94A3B8",
-      creaseStroke: "#38BDF8",
-      splitterFill: "#2563EB",
-      splitterStroke: "#38BDF8",
-      exhaustCoreFill: "#090D16",
-      headlightFill: "#38BDF8",
-      taillightFill: "#F43F5E",
-      wheelRimFill: "#111827",
-      wheelRimStroke: "#94A3B8",
-      spokePrimary: "#E2E8F0",
-      spokeSecondary: "#94A3B8",
-      caliperFill: "#F43F5E",
-      caliperStroke: "#F8FAFC",
-      groundGlowStops: [
-        "rgba(37, 99, 235, 0.70)",
-        "rgba(9, 13, 22, 0.35)",
-        "rgba(9, 13, 22, 0)",
-      ],
-      dropShadow: "drop-shadow(0 20px 40px rgba(37, 99, 235, 0.38))",
+      chassisAccent: "#38BDF8",
+      canopyFill: "rgba(37, 99, 235, 0.28)",
+      sonarArc: "rgba(56, 189, 248, ALPHA)",
+      visionConeStart: "rgba(56, 189, 248, 0.24)",
+      visionConeEnd: "rgba(37, 99, 235, 0)",
+      trajectoryStroke: "#10B981",
+      busTrace: "rgba(148, 163, 184, 0.25)",
+      packetPrimary: "#38BDF8",
+      packetSecondary: "#2563EB",
+      packetSuccess: "#34D399",
+      packetAmber: "#F59E0B",
+      cadBeamStroke: "rgba(56, 189, 248, ALPHA)",
+      cadSlabGrid: "rgba(148, 163, 184, ALPHA)",
+      cadNodeFill: "#F59E0B",
+      nodeCardFill: "rgba(17, 24, 39, 0.92)",
+      nodeCardStroke: "rgba(148, 163, 184, 0.35)",
+      nodeLabelText: "#F8FAFC",
+      nodeSubText: "#94A3B8",
     },
   },
   // 1B: Automotive Cockpit Light (Warm Amber + Redline Crimson + Cool Cyan on Porcelain Slate)
@@ -123,45 +103,29 @@ export const THEME_PALETTES: Record<ThemeMode, CanvasThemePalette> = {
       ],
       canvasOpacityClass: "opacity-90",
     },
-    muscleCar: {
-      flameStops: [
-        "rgba(245, 158, 11, ALPHA)",
-        "rgba(220, 38, 38, ALPHA)",
-        "rgba(248, 250, 252, 0)",
-      ],
-      smokeStops: [
-        "rgba(100, 116, 139, ALPHA)",
-        "rgba(203, 213, 225, ALPHA)",
-        "rgba(248, 250, 252, 0)",
-      ],
-      bodyGrad: ["#1E293B", "#334155", "#0284C7", "#2563EB"],
+    engineeringShowcase: {
+      gridMinor: "rgba(15, 23, 42, 0.035)",
+      gridMajor: "rgba(2, 132, 199, 0.11)",
+      chassisFill: "rgba(255, 255, 255, 0.96)",
       chassisStroke: "#0F172A",
-      wingMountFill: "#334155",
-      wingMountStroke: "#0F172A",
-      wingBladeStroke: "#D97706",
-      endplateFill: "#2563EB",
-      endplateStroke: "#0F172A",
-      canopyGrad: ["#0F172A", "#0284C7"],
-      canopyStroke: "#0F172A",
-      doorCutStroke: "#CBD5E1",
-      creaseStroke: "#D97706",
-      splitterFill: "#0F172A",
-      splitterStroke: "#D97706",
-      exhaustCoreFill: "#0F172A",
-      headlightFill: "#D97706",
-      taillightFill: "#DC2626",
-      wheelRimFill: "#F1F5F9",
-      wheelRimStroke: "#0F172A",
-      spokePrimary: "#0F172A",
-      spokeSecondary: "#475569",
-      caliperFill: "#DC2626",
-      caliperStroke: "#FFFFFF",
-      groundGlowStops: [
-        "rgba(15, 23, 42, 0.22)",
-        "rgba(203, 213, 225, 0.18)",
-        "rgba(248, 250, 252, 0)",
-      ],
-      dropShadow: "drop-shadow(0 18px 32px rgba(15, 23, 42, 0.18))",
+      chassisAccent: "#0284C7",
+      canopyFill: "rgba(2, 132, 199, 0.16)",
+      sonarArc: "rgba(2, 132, 199, ALPHA)",
+      visionConeStart: "rgba(217, 119, 6, 0.22)",
+      visionConeEnd: "rgba(217, 119, 6, 0)",
+      trajectoryStroke: "#059669",
+      busTrace: "rgba(71, 85, 105, 0.26)",
+      packetPrimary: "#0284C7",
+      packetSecondary: "#2563EB",
+      packetSuccess: "#059669",
+      packetAmber: "#D97706",
+      cadBeamStroke: "rgba(37, 99, 235, ALPHA)",
+      cadSlabGrid: "rgba(71, 85, 105, ALPHA)",
+      cadNodeFill: "#DC2626",
+      nodeCardFill: "rgba(255, 255, 255, 0.95)",
+      nodeCardStroke: "#CBD5E1",
+      nodeLabelText: "#0F172A",
+      nodeSubText: "#475569",
     },
   },
 };

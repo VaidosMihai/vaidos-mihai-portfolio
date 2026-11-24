@@ -1,6 +1,6 @@
 import React from "react";
 import FluidMeshBackground from "@/components/canvas/FluidMeshBackground";
-import MuscleCarTransition from "@/components/canvas/MuscleCarTransition";
+import EngineeringShowcaseTransition from "@/components/canvas/EngineeringShowcaseTransition";
 import Header from "@/components/common/Header";
 import Footer from "@/components/common/Footer";
 import HeroBento from "@/components/bento/HeroBento";
@@ -24,8 +24,8 @@ export default function Home() {
         {/* Hero Bento */}
         <HeroBento />
 
-        {/* Signature Automotive Racecar Scroll Transition */}
-        <MuscleCarTransition />
+        {/* Multi-Domain ADAS, CAN/ETL & 3D CAD Engineering Showcase */}
+        <EngineeringShowcaseTransition />
 
         {/* Interactive Architecture Schematics */}
         <InteractiveSchematicsSection />

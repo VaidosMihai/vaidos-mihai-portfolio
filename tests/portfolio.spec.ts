@@ -125,6 +125,13 @@ test.describe("Portfolio Production Verification", () => {
   }) => {
     await page.goto("/", { waitUntil: "networkidle" });
 
+    // Multi-domain simulation layer focus buttons work cleanly
+    const cadModeBtn = page.getByRole("button", { name: "3D CAD Revit" });
+    await cadModeBtn.click();
+    await expect(cadModeBtn).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText("6 MODULES")).toBeVisible();
+    await page.getByRole("button", { name: "Auto Blend" }).click();
+
     // Switch Schematics tab & verify all aria-controls DOM targets exist
     const allTabs = page.locator("#schematics [role='tab']");
     const tabCount = await allTabs.count();

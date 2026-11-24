@@ -21,7 +21,7 @@ Implemented via semantic CSS custom properties ([globals.css](src/app/globals.cs
 
 ## Key Features
 
-1. **Reactive 2D Fluid Mesh & Hypercar Scroll Showcase:** `devicePixelRatio`-clamped 2D Canvas backgrounds and scroll-linked telemetry HUD that adapt seamlessly to Dark/Light themes, pause offscreen/backgrounded, and honor `prefers-reduced-motion`.
+1. **Multi-Domain Simulation Showcase & Fluid Canvas:** Scroll-driven 2D Canvas combining an ADAS/REM ultrasonic & vision blueprint, CAN-Bus + Python/Pandas telemetry packets, and an isometric 3D CAD Revit structural wireframe (`Auto Blend`, `ADAS Radar`, `CAN / ETL`, `3D CAD Revit` modes) that adapts seamlessly to Dark/Light themes, pauses offscreen, and honors `prefers-reduced-motion`.
 2. **Interactive System Schematics:** Three clickable architecture pipelines (`CARIAD REM Telemetry`, `Graitec / Revit (C# .NET)`, `Mazda Telematics HIL`) with accessible WAI-ARIA tabs and an inspector dialog (`SchematicModal`).
 3. **Live DLT & CANoe Diagnostic Simulator:** Monospace diagnostic terminal with Pause/Resume, eCall Sanity trigger, CAN Frame injector, Clear Console, and Restore Baseline controls.
 4. **Raycast Command Palette (`Cmd/Ctrl+K`):** Built with `cmdk` for instant theme switching, section navigation, technology filtering (`C# / .NET`, `WPF / MVVM`, `Autodesk Revit`, `Python & Pandas`, `Modern C++`, `CARIAD REM`, `Vector CANoe`, `Azure DevOps`), clipboard actions, and PDF resume printing.

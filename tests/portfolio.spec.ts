@@ -125,12 +125,24 @@ test.describe("Portfolio Production Verification", () => {
   }) => {
     await page.goto("/", { waitUntil: "networkidle" });
 
-    // Multi-domain simulation layer focus buttons work cleanly
-    const cadModeBtn = page.getByRole("button", { name: "3D CAD Revit" });
-    await cadModeBtn.click();
-    await expect(cadModeBtn).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByText("6 MODULES")).toBeVisible();
-    await page.getByRole("button", { name: "Auto Blend" }).click();
+    // Separate project simulation slides/tabs switch cleanly without combining scenes
+    const showcaseSection = page.locator(
+      "section[aria-label='Project-specific interactive engineering simulations']"
+    );
+    const projectTablist = showcaseSection.getByRole("tablist", {
+      name: "Select individual project simulation",
+    });
+    await expect(projectTablist).toBeVisible();
+    await projectTablist.getByRole("tab", { name: "BMW Parking" }).click();
+    await expect(showcaseSection.getByText("12 USS + 4 CAM")).toBeVisible();
+    await projectTablist.getByRole("tab", { name: "HARMAN eCall" }).click();
+    await expect(
+      showcaseSection.getByText("2G/3G ECALL", { exact: true })
+    ).toBeVisible();
+    await projectTablist.getByRole("tab", { name: "Graitec 3D CAD" }).click();
+    await expect(showcaseSection.getByText("6 MODULES")).toBeVisible();
+    await projectTablist.getByRole("tab", { name: "CARIAD REM" }).click();
+    await expect(showcaseSection.getByText("CANoe 100%")).toBeVisible();
 
     // Switch Schematics tab & verify all aria-controls DOM targets exist
     const allTabs = page.locator("#schematics [role='tab']");

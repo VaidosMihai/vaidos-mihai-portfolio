@@ -11,6 +11,7 @@ import TechStackBento from "@/components/bento/TechStackBento";
 import EducationBento from "@/components/bento/EducationBento";
 import ContactBento from "@/components/bento/ContactBento";
 import CommandMenu from "@/components/command-menu/CommandMenu";
+import SecretInlineEditor from "@/components/editor/SecretInlineEditor";
 
 export default function Home() {
   return (
@@ -50,6 +51,9 @@ export default function Home() {
 
       {/* Command Palette Modal */}
       <CommandMenu />
+
+      {/* Secret Inline Text Editor (?edit=1) */}
+      <SecretInlineEditor />
     </div>
   );
 }

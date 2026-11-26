@@ -200,6 +200,27 @@
   background-color: transparent;
 }
 
+/* Secret Visual Text Edit Mode (?edit=1) */
+html[data-secret-edit-mode="true"] main :is(h1, h2, h3, h4, p, li, strong):hover,
+html[data-secret-edit-mode="true"] footer :is(h1, h2, h3, h4, p, li, strong):hover {
+  outline: 1.5px dashed rgb(var(--rgb-accent-amber));
+  outline-offset: 3px;
+  border-radius: 4px;
+  cursor: text;
+}
+
+[data-inline-editing="true"] {
+  outline: 2px solid rgb(var(--rgb-accent-amber)) !important;
+  outline-offset: 4px;
+  border-radius: 4px;
+  background-color: rgba(245, 158, 11, 0.14);
+}
+
+[data-inline-edited="true"] {
+  text-decoration: underline dotted rgb(var(--rgb-accent-amber));
+  text-underline-offset: 3px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

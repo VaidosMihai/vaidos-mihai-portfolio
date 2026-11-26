@@ -445,4 +445,62 @@ test.describe("Portfolio Production Verification", () => {
     ).toBeVisible();
     expect(pageErrors).toEqual([]);
   });
+
+  test("Secret inline text editor activates only on ?edit=1, persists edits across reload, and resets cleanly", async ({
+    page,
+  }) => {
+    const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+    page.on("pageerror", (err) => {
+      pageErrors.push(err.message);
+    });
+
+    // Public URL '/' must not show any secret editor controls
+    await page.goto("/", { waitUntil: "networkidle" });
+    await expect(page.locator("[data-secret-editor='true']")).toBeHidden();
+
+    // Secret URL '/?edit=1' opens inline visual editor
+    await page.goto("/?edit=1", { waitUntil: "networkidle" });
+    const editorDock = page.locator("[data-secret-editor='true']");
+    await expect(editorDock).toBeVisible();
+    await expect(editorDock.getByText("SECRET EDIT MODE")).toBeVisible();
+    await expect(editorDock.getByText("Changes (0)")).toBeVisible();
+
+    // Click heading inside Technical Skills Matrix and edit text inline
+    const skillsHeading = page.locator("#skills h2");
+    const originalHeading = (await skillsHeading.textContent()) ?? "";
+    await skillsHeading.click();
+    await expect(skillsHeading).toHaveAttribute("data-inline-editing", "true");
+
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("Custom Edited Skills Matrix");
+    await page.keyboard.press("Enter");
+
+    await expect(skillsHeading).toHaveText("Custom Edited Skills Matrix");
+    await expect(editorDock.getByText("Changes (1)")).toBeVisible();
+
+    // Reload '/?edit=1' and confirm edit persists from browser storage
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator("#skills h2")).toHaveText(
+      "Custom Edited Skills Matrix"
+    );
+    await expect(editorDock.getByText("Changes (1)")).toBeVisible();
+
+    // Verify Changes drawer & Reset button cleanly restore original text
+    await editorDock.getByRole("button", { name: /Changes \(1\)/i }).click();
+    await expect(
+      editorDock.getByText("SAVED TEXT ADJUSTMENTS (1)")
+    ).toBeVisible();
+    await editorDock
+      .getByRole("button", { name: "Reset all text edits" })
+      .click();
+
+    await expect(page.locator("#skills h2")).toHaveText(originalHeading);
+    await expect(editorDock.getByText("Changes (0)")).toBeVisible();
+    expect(consoleErrors).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
 });
